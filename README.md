@@ -15,7 +15,7 @@ Backup Fuzzer được thiết kế để `fuzzing` và phát hiện các file b
 Yêu cầu **Python 3.x**. Cài đặt các thư viện phụ thuộc:
 
 ```bash
-pip install requests tqdm
+pip install -r requirements.txt
 ```
 
 ## 📖 Hướng Dẫn Sử Dụng
