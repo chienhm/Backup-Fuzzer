@@ -8,6 +8,8 @@ import re
 import random
 import time
 import threading
+import itertools
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 from requests.adapters import HTTPAdapter
@@ -31,6 +33,10 @@ class Colors:
 
 # Khóa để ghi file an toàn khi chạy đa luồng
 file_lock = threading.Lock()
+
+# Global counter cho rate limit
+RATE_LIMIT_COUNTER = 0
+rate_limit_lock = threading.Lock()
 
 # --- 1. USER-AGENTS (MASSIVE LIST v26) ---
 USER_AGENTS = [
@@ -109,10 +115,60 @@ DEFAULT_INFIXES = [
     "_backup_final", "_old_backup", "1", "2", "3"
 ]
 
+# --- 5. LOG FILENAMES (COMMON) ---
+COMMON_LOG_FILENAMES = [
+    # General
+    "error.log", "access.log", "debug.log", "system.log", "application.log", "app.log", "server.log",
+    "error_log", "access_log", "debug_log", "log.txt", "errors.txt", "access.txt", "debug.txt", 
+    "trace.log", "events.log", "activity.log", "apps.log", "messages.log", "apps.txt", "messages.txt",
+    "audit.log", "auth.log", "daemon.log", "kern.log", "syslog", "logs.txt", "logfile.log", "logfile.txt",
+    "combined.log", "combined_access.log", "info.log", "warning.log", "fatal.log", "info.txt", "warning.txt",
+    "fatal.txt", "payment.log", "payment_errors.log", "payment_access.log", "payment_debug.log",
+    "billing.log", "billing_errors.log", "billing_access.log", "billing_debug.log", "transaction.log",
+    "transaction_errors.log", "transaction_access.log", "transaction_debug.log", "order.log", "web.log", "web.txt",
+    "web_errors.log", "web_access.log", "web_debug.log", "api.log", "api_errors.log", "api_access.log", "api_debug.log",
+    "database.log", "database_errors.log", "database_access.log", "database_debug.log", "cache.log",
+    "cache_errors.log", "cache_access.log", "cache_debug.log", "queue.log", "queue_errors.log", "queue_access.log",
+    "queue_debug.log", "job.log", "job_errors.log", "job_access.log", "job_debug.log", "worker.log",
+    "worker_errors.log", "worker_access.log", "worker_debug.log", "monitor.log", "monitor_errors.log",
+    "monitor_access.log", "monitor_debug.log", "alert.log", "alert_errors.log", "alert_access.log", "alert_debug.log",
+    "audit.log", "audit_errors.log", "audit_access.log", "audit_debug.log",
+    "cron.log", "mail.log", "maillog", "yum.log", "dmesg", "boot.log", "auth.log", "secure", "secure.log",
+    "deployment.log", "deploy.log", "supervisor.log", "supervisord.log", "scheduler.log",
+    
+    # Web Servers
+    "nginx.log", "apache.log", "httpd.log", "iis.log", 
+    "nginx_error.log", "apache_error.log", "httpd_error.log", "iis_error.log",
+    "nginx_access.log", "apache_access.log", "httpd_access.log", "iis_access.log",
+    "nginx_debug.log", "apache_debug.log", "httpd_debug.log", "iis_debug.log", "iis7.log", 
+    "iis8.log", "iis10.log", "iis_error7.log", "iis_error8.log", "iis_error10.log",
+    "iis_access7.log", "iis_access8.log", "iis_access10.log", "iis_debug7.log", "iis_debug8.log",
+    "iis_debug10.log",
+    
+    # Databases
+    "mysql.log", "postgresql.log", "mongodb.log", "redis.log", "db.log", "database.log",
+    "mysql_error.log", "postgresql_error.log", "mongodb_error.log", "redis_error.log",
+    "mysql_access.log", "postgresql_access.log", "mongodb_access.log", "redis_access.log",
+    "mysql_debug.log", "postgresql_debug.log", "mongodb_debug.log", "redis_debug.log",
+
+    
+    # Frameworks / Languages
+    "laravel.log", "worker.log", "fpm.log", "php_errors.log", "php-error.log",
+    "catalina.out", "spring.log",
+    "production.log", "development.log", "test.log",
+    "npm-debug.log", "yarn-error.log",
+    "django.log", "flask.log", "rails.log", "tornado.log", "gunicorn.log", "uwsgi.log",
+    
+    # CMS / Specific
+    "wordpress.log", "wp-debug.log", "magento.log", "exception.log", "database.log", "db.log", "sql.log",
+    "drupal.log", "joomla.log", "prestashop.log", "error_report.log", "error_report.txt", "shop.log",
+    "shop_errors.log", "shop_access.log", "shop_debug.log", "error_report.log", "error_report.txt"
+]
+
 def get_arguments():
     parser = argparse.ArgumentParser(
         description="Backup Fuzzer v26.0 (Massive User-Agents)",
-        formatter_class=argparse.RawTextHelpFormatter,
+        formatter_class=argparse.RawTextHelpFormatter,  
         epilog="""EXAMPLES:
   1. Scan single URL:
      python3 fuzzing_backup.py -u https://example.com/config.php
@@ -145,6 +201,11 @@ def get_arguments():
 
     # Modes
     modes = parser.add_argument_group('MODES')
+    modes.add_argument("--fuzz-domain", action="store_true", help="Kích hoạt fuzz tạo file backup dựa trên domain")
+    modes.add_argument("--fuzz-year", dest="fuzz_year", nargs='?', const=0, type=int, help="Kích hoạt fuzz theo năm. Gõ số năm bắt đầu (Vd: --fuzz-year 2018)")
+    modes.add_argument("--fuzz-date", dest="fuzz_date", nargs='?', const="TODAY", help="Kích hoạt fuzz full ngày tháng. Cú pháp: [MM]-YYYY hoặc [StartMM-EndMM]-YYYY. VD: 12-2018, [1-7]-2018. Mặc định: TODAY")
+    modes.add_argument("--scan-logs", dest="scan_logs", nargs='?', const="DEFAULT", help="Kích hoạt chế độ quét file logs. Có thể điền tên file log cụ thể để fuzz (VD: --scan-logs custom.log). Nếu để trống sẽ dùng list mặc định.")
+    modes.add_argument("--smart-404", action="store_true", help="Tự động nhận diện Soft 404 để lọc False Positives")
     modes.add_argument("--no-suffix", action="store_true", help="Tắt quét nối đuôi (Suffix)")
     modes.add_argument("--no-prefix", action="store_true", help="Tắt quét tiền tố (Prefix)")
     modes.add_argument("--no-infix", action="store_true", help="Tắt quét chèn giữa (Infix)")
@@ -192,7 +253,130 @@ def normalize_endpoint(endpoint, extension=None):
         if not endpoint.endswith(extension): endpoint += extension
     return endpoint
 
-def create_variations(filename, active_suffixes, active_infixes, active_prefixes):
+def generate_year_payloads(start_year=None):
+    """Tạo danh sách các pattern năm phổ biến"""
+    year_patterns = set()
+    now = datetime.now()
+    current_year = now.year
+
+    if start_year is not None:
+        y_start = min(start_year, current_year)
+        y_end = max(start_year, current_year)
+        years = list(range(y_start, y_end + 1))
+    else:
+        years = [current_year, current_year - 1] 
+    
+    for y in years:
+        year_patterns.add(str(y)) # 2024
+        year_patterns.add(f"_{y}") # _2024
+        year_patterns.add(f".{y}") # .2024
+        year_patterns.add(f"-{y}") # -2024
+    
+    return list(year_patterns)
+
+def generate_full_date_payloads(range_string):
+    """
+    Sinh pattern full ngày tháng dựa trên input:
+    - TODAY (Ngày hiện tại)
+    - 2024 (Nguyên năm 2024)
+    - 12-2018 (Tháng 12 năm 2018)
+    - [1-7]-2018 (Từ tháng 1 đến tháng 7 năm 2018)
+    Format sinh ra: YYYYMMDD, DDMMYYYY, MMDDYYYY, YYYY-MM-DD...
+    """
+    targets_month_year = [] # List of tuple (month, year)
+    
+    # Handle TODAY
+    if range_string == "TODAY":
+        now = datetime.now()
+        # Đối với TODAY, ta chỉ fuzz ngày hôm nay (và có thể hôm qua cho chắc)
+        # Nhưng function này thiết kế theo month/year loop.
+        # Để đơn giản, ta trả về trực tiếp bộ payload cho ngày hôm nay luôn
+        # Thay vì loop qua month/year.
+        date_patterns = set()
+        dt = now
+        
+        # Danh sách các định dạng cần fuzz
+        # Bao gồm cả Full Year (YYYY) và Short Year (YY)
+        # Bao gồm các separator phổ biến (-, .)
+        fmt_list = [
+            "%Y%m%d",   # 20240125
+            "%d%m%Y",   # 25012024
+            "%Y-%m-%d", # 2024-01-25
+            "%m%d%Y",   # 01252024
+            "%Y-%d-%m", # 2024-25-01
+            "%d-%m-%Y", # 25-01-2024
+            "%m-%d-%Y", # 01-25-2024
+            "%d%m%y",   # 250124 (Short Year)
+            "%y%m%d",   # 240125 (Short Year)
+        ]
+
+        for fmt in fmt_list:
+            val = dt.strftime(fmt)
+            # Add variations: raw, _val, -val, .val
+            date_patterns.add(val)
+            date_patterns.add(f"_{val}")
+            date_patterns.add(f"-{val}")
+            date_patterns.add(f".{val}")
+        
+        return list(date_patterns)
+
+    # Regex parse input
+    # Case 1: [1-7]-2018
+    match_range = re.match(r'^\[(\d+)-(\d+)\]-(\d{4})$', range_string)
+    # Case 2: 12-2018
+    match_single = re.match(r'^(\d{1,2})-(\d{4})$', range_string)
+    # Case 3: 2024 (Full year)
+    match_year = re.match(r'^(\d{4})$', range_string)
+    
+    if match_range:
+        start_m = int(match_range.group(1))
+        end_m = int(match_range.group(2))
+        y = int(match_range.group(3))
+        for m in range(start_m, end_m + 1):
+            if 1 <= m <= 12: targets_month_year.append((m, y))
+            
+    elif match_single:
+        m = int(match_single.group(1))
+        y = int(match_single.group(2))
+        if 1 <= m <= 12: targets_month_year.append((m, y))
+
+    elif match_year:
+        y = int(match_year.group(1))
+        for m in range(1, 13):
+            targets_month_year.append((m, y))
+
+    else:
+        print(f"{Colors.RED}[!] Format date fuzz không hợp lệ: {range_string}{Colors.RESET}")
+        return []
+
+    date_patterns = set()
+    from calendar import monthrange
+
+    for m, y in targets_month_year:
+        days_in_month = monthrange(y, m)[1]
+        for d in range(1, days_in_month + 1):
+            try:
+                dt = datetime(year=y, month=m, day=d)
+            except ValueError:
+                continue
+
+            # Standardized format list + prefixing for loop
+            fmt_list = [
+                "%Y%m%d", "%d%m%Y", "%Y-%m-%d", "%m%d%Y", 
+                "%Y-%d-%m", "%d-%m-%Y", "%m-%d-%Y",
+                "%d%m%y", "%y%m%d"
+            ]
+
+            for fmt in fmt_list:
+                val = dt.strftime(fmt)
+                date_patterns.add(val)
+                date_patterns.add(f"_{val}")
+                date_patterns.add(f"-{val}")
+                date_patterns.add(f".{val}")
+
+    return list(date_patterns)
+
+def create_variations(filename, active_suffixes, active_infixes, active_prefixes, date_payloads=None):
     if '.' in filename:
         stem, ext = filename.rsplit('.', 1)
         ext = '.' + ext 
@@ -209,10 +393,101 @@ def create_variations(filename, active_suffixes, active_infixes, active_prefixes
             if ext and suffix.startswith('.'): variations.add(stem + suffix)
     if active_prefixes:
         for prefix in active_prefixes: variations.add(prefix + filename)
+    
+    # --- DATE FUZZING ---
+    if date_payloads:
+        for d in date_payloads:
+            # Suffix style: config.php.2024, config.php_2024
+            variations.add(filename + d)
+             # Infix style: config_2024.php
+            if ext: variations.add(stem + d + ext)
+
     if active_suffixes or active_prefixes: variations.add('%23' + filename + '%23')
     return list(variations)
 
-def generate_mutations(base_url, endpoint, active_suffixes, active_infixes, active_prefixes):
+def generate_domain_payloads(target_url, active_suffixes, active_infixes, active_prefixes, date_payloads=None):
+    """
+    Sinh ra payload dựa trên domain của target 
+    Kết hợp với suffix, infix, prefix từ arguments.
+    """
+    try:
+        parsed = urllib.parse.urlparse(target_url)
+        hostname = parsed.hostname
+        if not hostname: return []
+    except: return []
+    
+    parts = hostname.split('.')
+    domain_variations = set()
+
+    # 1. Full hostname: sub.example.com
+    domain_variations.add(hostname)
+    
+    # 2. Main domain + TLD: example.com
+    if len(parts) >= 2:
+        domain_variations.add(f"{parts[-2]}.{parts[-1]}")
+    
+    # 3. Individual parts: sub, example, com
+    for part in parts:
+        domain_variations.add(part)
+    
+    # 4. Without dots: subexamplecom
+    domain_variations.add(hostname.replace('.', ''))
+    
+    # 5. Consecutive pairs: sub.example, example.com
+    for i in range(len(parts) - 1):
+        domain_variations.add(f"{parts[i]}.{parts[i+1]}")
+        domain_variations.add(f"{parts[i]}{parts[i+1]}") # No dot pair
+    
+    # 6. Shuffle/Mixed (Permutations of parts)
+    if len(parts) > 1 and len(parts) <= 4:
+        perms = itertools.permutations(parts)
+        for p in perms:
+            domain_variations.add(".".join(p))
+            domain_variations.add("".join(p))
+
+    # 7. Reverse (Dao nguoc chuoi)
+    domain_variations.add(hostname[::-1])
+    domain_variations.add(hostname.replace('.', '')[::-1])
+
+    # 8. Without vowels
+    vowels = ['a', 'e', 'i', 'o', 'u']
+    current_vars = list(domain_variations)
+    for v in current_vars:
+        no_vowel = v
+        for char in vowels:
+            no_vowel = no_vowel.replace(char, '')
+        if no_vowel and no_vowel != v:
+            domain_variations.add(no_vowel)
+
+    # --- Combine with Suffixes/Prefixes/Infixes ---
+    # Nếu người dùng KHÔNG nhập -b (custom suffix), thì dùng list mặc định CỘNG THÊM các extension nén phổ biến cho domain backup
+    # Nếu người dùng có nhập -b, thì chỉ dùng cái họ nhập.
+    
+    # Tuy nhiên, để linh hoạt, ta sẽ dùng hàm create_variations cho từng biến thể domain.
+    # Lưu ý: create_variations sẽ coi biến thể domain là "filename".
+    
+    payloads = []
+    base_url = f"{parsed.scheme}://{parsed.netloc}/"
+    
+    for dv in domain_variations:
+        # Gọi hàm create_variations để áp dụng logic prefix, suffix, infix
+        # Lưu ý: create_variations sẽ tự tách extension nếu tên có dấu chấm (vd: example.com -> stem: example, ext: .com)
+        # Điều này tạo ra các biến thể rất thú vị: example_bk.com, example.com.zip, old_example.com
+        
+        mutations = create_variations(dv, active_suffixes, active_infixes, active_prefixes, date_payloads)
+        
+        # Ngoài ra, với domain fuzzing, ta luôn muốn thử ghép trực tiếp các đuôi nén phổ biến
+        # nếu nó chưa có trong active_suffixes
+        
+        # Nếu active_suffixes rỗng (do --no-suffix), ta tôn trọng nó.
+        # Nếu active_suffixes có giá trị (mặc định hoặc custom), ta dùng nó.
+        
+        for m in mutations:
+            payloads.append(base_url + m)
+            
+    return list(set(payloads))
+
+def generate_mutations(base_url, endpoint, active_suffixes, active_infixes, active_prefixes, date_payloads=None):
     if not endpoint: return []
     parts = endpoint.split('/')
     filename = parts[-1]
@@ -223,7 +498,7 @@ def generate_mutations(base_url, endpoint, active_suffixes, active_infixes, acti
     if not base_url.endswith('/'): base_url += '/'
     full_base = base_url + parent_path
 
-    variations = create_variations(filename, active_suffixes, active_infixes, active_prefixes)
+    variations = create_variations(filename, active_suffixes, active_infixes, active_prefixes, date_payloads)
     return [full_base + v for v in variations]
 
 def get_color_for_status(status_code):
@@ -244,9 +519,37 @@ def save_to_file(filepath, content):
         except Exception as e:
             pass
 
-def check_url(session, url, base_headers, proxies, filters, use_random_agent, delay, match_codes, filter_codes, output_file, timeout):
+def detect_soft_404(session, base_url, headers, proxies):
+    """
+    Gửi request đến URL không tồn tại để lấy signature của Soft 404
+    Trả về: (status_code, content_length) của trang 404
+    """
     try:
-        if delay > 0: time.sleep(delay)
+        # Tạo random path kiểu UUID để chắc chắn 404
+        random_path = f"soft404_probing_{random.randint(100000, 999999)}"
+        probe_url = urllib.parse.urljoin(base_url, random_path)
+        
+        # Thử 2 lần để chắc chắn ổn định
+        sizes = []
+        chk_status = 0
+        
+        for _ in range(2):
+            res = session.get(probe_url, headers=headers, proxies=proxies, timeout=5, allow_redirects=False, verify=False)
+            sizes.append(len(res.content))
+            chk_status = res.status_code
+        
+        # Nếu size ổn định (chênh lệch ít) -> lấy trung bình hoặc max
+        if abs(sizes[0] - sizes[1]) < 10: 
+            # print(f"{Colors.GREY}[*] Soft 404 Signature for {base_url}: Status={chk_status}, Size={sizes[0]}{Colors.RESET}")
+            return (chk_status, sizes[0]) # Trả về size của trang lỗi
+            
+    except:
+        pass
+    return (None, None)
+
+def check_url(session, url, base_headers, proxies, filters, use_random_agent, delay, match_codes, filter_codes, output_file, timeout, soft_404_signatures=None, retry_count=0):
+    try:
+        if delay > 0 and retry_count == 0: time.sleep(delay)
 
         current_headers = base_headers.copy()
         if use_random_agent:
@@ -255,6 +558,27 @@ def check_url(session, url, base_headers, proxies, filters, use_random_agent, de
         res = session.get(url, headers=current_headers, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
         
         status = res.status_code
+
+        # --- RATE LIMIT HANDLING (429) ---
+        if status == 429:
+            global RATE_LIMIT_COUNTER
+            with rate_limit_lock:
+                RATE_LIMIT_COUNTER += 1
+                curr_failed = RATE_LIMIT_COUNTER
+            
+            if curr_failed > 100:
+                tqdm.write(f"{Colors.RED}[CRITICAL] Too Many 429 Errors (>100). Stop tool immediately to prevent IP Block.{Colors.RESET}")
+                try: os._exit(1) # Kill forcedly
+                except: sys.exit(1)
+
+            if retry_count < 3: # Max 3 lần thử lại
+                wait_t = 10 * (retry_count + 1)
+                tqdm.write(f"{Colors.YELLOW}[!] 429 Too Many Requests tại {url}. Đang ngủ {wait_t}s rồi thử lại... (Total 429: {curr_failed}){Colors.RESET}")
+                time.sleep(wait_t)
+                return check_url(session, url, base_headers, proxies, filters, use_random_agent, delay, match_codes, filter_codes, output_file, timeout, soft_404_signatures, retry_count + 1)
+            else:
+                tqdm.write(f"{Colors.RED}[!] Bỏ qua {url} sau 3 lần gặp 429.{Colors.RESET}")
+                return
         size_bytes = len(res.content)
         
         # --- FILTER STATUS ---
@@ -263,6 +587,21 @@ def check_url(session, url, base_headers, proxies, filters, use_random_agent, de
         # ---------------------
 
         if filters['exclude_sizes'] and size_bytes in filters['exclude_sizes']: return 
+
+        # --- SOFT 404 CHECK ---
+        # Nếu đã bật Smart 404, ta kiểm tra xem response này có giống trang Soft 404 không
+        if soft_404_signatures:
+            # Lấy domain base để đối chiếu signature
+            parsed = urllib.parse.urlparse(url)
+            base = f"{parsed.scheme}://{parsed.netloc}"
+            
+            if base in soft_404_signatures:
+                sig_status, sig_size = soft_404_signatures[base]
+                if sig_status and sig_size:
+                     # Nếu status giống status 404 VÀ size xấp xỉ size 404 (chênh lệch < 5%)
+                     # Hoặc nếu status trả về 200 nhưng size lại bằng size của trang lỗi 404
+                     if status == sig_status and abs(size_bytes - sig_size) < (sig_size * 0.05 + 10):
+                         return # Bỏ qua, đây là Soft 404
 
         content_for_search = str(res.headers) + "\n" + res.text 
         if filters['exclude_regex'] and filters['exclude_regex'].search(content_for_search): return
@@ -319,7 +658,7 @@ def main():
     elif args.prefix: active_prefixes = [p.strip() for p in args.prefix.split(',') if p.strip()]
 
     base_headers = {}
-    if not args.random_agent: base_headers['User-Agent'] = 'Mozilla/5.0 (BackupFuzzer/26.0)'
+    if not args.random_agent: base_headers['User-Agent'] = 'Mozilla/5.0 (Backup-Fuzzer/2.7.0)'
     if args.headers:
         for h in args.headers:
             try: k, v = h.split(':', 1); base_headers[k.strip()] = v.strip()
@@ -352,6 +691,26 @@ def main():
     # --- GENERATE ---
     all_scan_urls = []
     wordlist_endpoints = []
+    
+    # Date Payloads
+    date_payloads = []
+    
+    # 1. Year Fuzzing
+    if args.fuzz_year is not None:
+        # Nếu == 0 (const) => Không có năm chỉ định, dùng mặc định
+        # Nếu > 0 => Có năm chỉ định
+        start_y = args.fuzz_year if args.fuzz_year > 0 else None
+        date_payloads.extend(generate_year_payloads(start_y))
+
+    # 2. Full Date Fuzzing (MM-YYYY or Range)
+    if args.fuzz_date:
+        full_date_p = generate_full_date_payloads(args.fuzz_date)
+        date_payloads.extend(full_date_p)
+
+    if date_payloads:
+        date_payloads = list(set(date_payloads))
+        print(f"{Colors.YELLOW}[*] Loaded {len(date_payloads)} date patterns.{Colors.RESET}")
+
     if args.wordlist and os.path.exists(args.wordlist):
         with open(args.wordlist, 'r', encoding='utf-8', errors='ignore') as f:
             wordlist_endpoints = list(set([normalize_endpoint(line, args.ext) for line in f if line.strip()]))
@@ -368,21 +727,141 @@ def main():
                  parent = "/".join(parts[:-1])
                  if parent: parent += "/"
                  
-                 variations = create_variations(filename, active_suffixes, active_infixes, active_prefixes)
+                 # Note: FUZZ mode doesn't support automatic date/domain fuzzing deeply unless explicit logic added
+                 variations = create_variations(filename, active_suffixes, active_infixes, active_prefixes, date_payloads)
                  for v in variations:
                      all_scan_urls.append(target.replace('FUZZ', parent + v))
             continue
 
         parsed = urllib.parse.urlparse(target)
         base = f"{parsed.scheme}://{parsed.netloc}"
+        
+        # --- LOG SCAN MODE ---
+        if args.scan_logs:
+            # Xác định thư mục mục tiêu
+            path = parsed.path
+            if not path.endswith('/'): path += '/'
+            
+            # Với chế độ Scan Logs, ta KHÔNG dùng suffix/prefix/infix của backup code (như .php.bak, copy_of_...)
+            # Mà dùng định nghĩa riêng cho Log (Rotation, Compression...)
+            
+            # 1. Suffixes cho log rotation/backup thường gặp (Added into filenames: error.log.1, error.log.old)
+            log_rot_suffixes = ['.1', '.2', '.3', '.4', '.5', '.old', '.bak', '.1.gz', '.2.gz', '.gz', '.zip', '.tar.gz', '.rar', '.7z', '.swp', '~']
+            
+            # 2. Infixes cho log (Added inside filenames: error.old.log, error-2024.log)
+            # Dùng để biến đổi: error.log -> error[INFIX].log
+            log_infixes = [
+                '.1', '.2', # error.1.log
+                '_old', '-old', '.old', # error_old.log
+                '_bak', '-bak', '.bak', # error.bak.log
+                '_backup', '-backup', '.backup',
+                '_copy', '-copy',
+                '_err', '-err', '_error', '-error',
+                '_acc', '-acc', '_access', '-access',
+                '_new', '-new',
+                '_test', '-test',
+                '_rotate', '-rotate'
+            ]
+            
+            # 2. Log không dùng prefix biến dị như code (ko có copy_of_error.log)
+            # Nên ta để trống hoặc minimal
+            log_prefixes_empty = []
+
+            # Xác định danh sách file logs cần quét
+            target_log_filenames = []
+            
+            # 1. Ưu tiên lấy từ tham số --scan-logs (VD: --scan-logs custom.log)
+            if args.scan_logs and args.scan_logs != "DEFAULT":
+                target_log_filenames.extend([x.strip() for x in args.scan_logs.split(',') if x.strip()])
+                print(f"{Colors.YELLOW}[*] Scanning specific log filenames from CLI: {len(target_log_filenames)} items{Colors.RESET}")
+            
+            # 2. Lấy thêm từ wordlist -w (nếu có)
+            if wordlist_endpoints:
+                 target_log_filenames.extend(wordlist_endpoints)
+                 print(f"{Colors.YELLOW}[*] Merged {len(wordlist_endpoints)} items from wordlist (-w) into Log Scan.{Colors.RESET}")
+
+            # 3. Nếu không có gì cả (chỉ bật cờ --scan-logs), dùng list mặc định
+            if not target_log_filenames:
+                 target_log_filenames = COMMON_LOG_FILENAMES
+                 print(f"{Colors.CYAN}[*] No custom logs provided. Using built-in common list ({len(COMMON_LOG_FILENAMES)} items).{Colors.RESET}")
+            
+            # Remove duplicates
+            target_log_filenames = list(set(target_log_filenames))
+
+            # Thêm các logs vào endpoint
+            for log_file in target_log_filenames:
+                ep = path + log_file
+                
+                # Check file gốc (error.log)
+                all_scan_urls.append(base + ep)
+                
+                # Check variations riêng cho Log (error.log.1, error.log.gz, error.log.2024...)
+                # Lưu ý: generate_mutations vẫn xử lý date_payloads (error.log.2024) rất tốt
+                all_scan_urls.extend(generate_mutations(base, ep, log_rot_suffixes, log_infixes, log_prefixes_empty, date_payloads))
+            
+            # --- DATE-BASED LOG FILENAMES (Mới) ---
+            # Define common extensions for Date & Domain logs
+            log_exts = ['.log', '.logs', '.txt', '.zip', '.sql', '.xml', '.rar', '.tar.gz', '.gz', '.7z']
+            
+            # Generate: 2022-01-01.log, 2022_01_01.zip, ...
+            if date_payloads:
+                # Các prefix thường gặp đi kèm date
+                log_prefixes = ['log_', 'logs_', 'error_', 'access_', 'db_', 'database_', 'backup_', 'www_', 'data_', ''] 
+
+                for d in date_payloads:
+                    # Clean date string (nếu muốn): Xóa ký tự đầu nếu là separator để tránh trùng lặp xấu
+                    clean_d = d.lstrip('._-') 
+                    
+                    for ext in log_exts:
+                         # 1. Pure Date + Ext: 2022-07-21.zip
+                         all_scan_urls.append(base + path + clean_d + ext)
+                         
+                         # 2. Prefix + Date + Ext: error_2022-07-21.log
+                         for p in log_prefixes:
+                              if p: all_scan_urls.append(base + path + p + clean_d + ext)
+
+            # --- DOMAIN-BASED LOG FILENAMES (Mới) ---
+            # Generate: fptplay.log, dev.fptplay.vn.zip, fptplay_error.log ...
+            try:
+                hostname = parsed.hostname
+                if hostname:
+                    domain_parts = hostname.split('.')
+                    chk_names = set()
+                    chk_names.add(hostname) # dev.fptplay.vn
+                    chk_names.add(hostname.replace('.', '_')) # dev_fptplay_vn
+                    
+                    if len(domain_parts) >= 2:
+                        chk_names.add(domain_parts[-2]) # fptplay
+                        chk_names.add(f"{domain_parts[-2]}.{domain_parts[-1]}") # fptplay.vn
+                        chk_names.add(f"{domain_parts[-2]}_{domain_parts[-1]}") # fptplay_vn
+                    
+                    # Log variation suffixes
+                    # vd: fptplay.log, fptplay_error.log
+                    log_suffixes = ['', '_error', '_access', '_backup', '_db', '_database', '-error', '-access', '-backup']
+
+                    for name in chk_names:
+                        for ext in log_exts:
+                            for suf in log_suffixes:
+                                all_scan_urls.append(base + path + name + suf + ext)
+            except: pass
+
+            continue
+            continue
+
         if wordlist_endpoints:
             for ep in wordlist_endpoints:
-                all_scan_urls.extend(generate_mutations(base, ep, active_suffixes, active_infixes, active_prefixes))
+                all_scan_urls.extend(generate_mutations(base, ep, active_suffixes, active_infixes, active_prefixes, date_payloads))
         else:
             path = parsed.path
             if not path or path == "/": continue
             ep = normalize_endpoint(path, args.ext)
-            all_scan_urls.extend(generate_mutations(base, ep, active_suffixes, active_infixes, active_prefixes))
+            all_scan_urls.extend(generate_mutations(base, ep, active_suffixes, active_infixes, active_prefixes, date_payloads))
+    
+    # --- DOMAIN FUZZING (NEW) ---
+    if args.fuzz_domain:
+        print(f"{Colors.YELLOW}[*] Generating domain-based payloads...{Colors.RESET}")
+        for target in target_list:
+            all_scan_urls.extend(generate_domain_payloads(target, active_suffixes, active_infixes, active_prefixes, date_payloads))
 
     all_scan_urls = list(set(all_scan_urls))
     total = len(all_scan_urls)
@@ -398,9 +877,29 @@ def main():
     session.mount('http://', adapter)
     session.mount('https://', adapter)
 
+    # --- SMART 404 DETECTION Đang Phát Triển Tiếp Phần Này---
+    soft_404_signatures = {}
+    if args.smart_404:
+        print(f"{Colors.YELLOW}[*] Detecting Soft 404 signatures (this may take a few seconds)...{Colors.RESET}")
+        
+        # Lấy danh sách base domain duy nhất
+        unique_bases = set()
+        for url in all_scan_urls:
+             try:
+                 p = urllib.parse.urlparse(url)
+                 unique_bases.add(f"{p.scheme}://{p.netloc}")
+             except: pass
+        
+        for base in unique_bases:
+            sig = detect_soft_404(session, base, base_headers, proxies)
+            if sig[0] is not None:
+                soft_404_signatures[base] = sig
+                print(f"{Colors.GREY}   + {base} -> 404 Size: {sig[1]} bytes (Status: {sig[0]}){Colors.RESET}")
+
+
     try:
         executor = ThreadPoolExecutor(max_workers=args.threads)
-        futures = [executor.submit(check_url, session, link, base_headers, proxies, filters, args.random_agent, args.delay, match_codes, filter_codes, args.output_file, args.timeout) for link in all_scan_urls]
+        futures = [executor.submit(check_url, session, link, base_headers, proxies, filters, args.random_agent, args.delay, match_codes, filter_codes, args.output_file, args.timeout, soft_404_signatures) for link in all_scan_urls]
         
         for _ in tqdm(as_completed(futures), total=total, unit="req", dynamic_ncols=True, mininterval=0.2,
                       bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]"):
