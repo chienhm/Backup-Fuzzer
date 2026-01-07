@@ -7,6 +7,9 @@ Backup Fuzzer được thiết kế để `fuzzing` và phát hiện các file b
 *   **Tối ưu hóa tốc độ**: Sử dụng `ThreadPoolExecutor` kết hợp với `requests.Session` để tái sử dụng kết nối TCP, giảm thiểu handshake overhead, giúp quét nhanh hơn.
 *   **Hỗ trợ keyword `FUZZ`**: Cho phép chỉ định vị trí chính xác để inject payload trong URL.
 *   **Cơ chế lọc thông minh**: Lọc theo Status Code, Kích thước file (Size), và Nội dung (Regex).
+*   **Log Scanning Mode**: Chế độ chuyên biệt để quét file logs (`access.log`, `error.log`...) với khả năng xử lý log rotation (`.1`, `.gz`).
+*   **Domain Fuzzing**: Tạo payload dựa trên tên miền để tìm các file backup liên quan đến tên miền.
+*   **Rate Limit Protection**: Tự động phát hiện lỗi 429 (Too Many Requests) và tạm dừng để tránh bị chặn IP.
 *   **Massive User-Agents**: Tích hợp danh sách User-Agent để giả lập nhiều loại trình duyệt và thiết bị, giúp tránh bị chặn bởi các cơ chế bảo mật cơ bản.
 *   **Giao diện trực quan**: Thanh tiến trình (tqdm) tự động điều chỉnh theo kích thước màn hình, hiển thị màu sắc trạng thái HTTP.
 
@@ -48,6 +51,18 @@ python3 fuzzing_backup.py [OPTIONS]
 *   `--no-suffix`: Tắt tạo payload kiểu nối đuôi (vd: `index.php.bak`).
 *   `--no-prefix`: Tắt tạo payload kiểu tiền tố (vd: `old_index.php`).
 *   `--no-infix`: Tắt tạo payload kiểu chèn giữa.
+*   `--scan-logs [FILE]`: Kích hoạt chế độ quét logs.
+    *   Nếu không điền `[FILE]`: Sử dụng danh sách log mặc định tích hợp sẵn.
+    *   Nếu điền `[FILE]`: Sử dụng danh sách từ file của bạn.
+    *   Tự động tối ưu payload: Loại bỏ các đuôi `.php` vô nghĩa, thêm đuôi rotation (`.1`, `.2.gz`).
+*   `--fuzz-date [RANGE]`: Fuzzing file backup theo ngày tháng.
+    *   `TODAY`: Quét các format ngày hôm nay.
+    *   `MM-YYYY` (vd: `12-2023`): Quét toàn bộ ngày trong tháng 12/2023.
+    *   `[Start-End]-YYYY` (vd: `[1-3]-2024`): Quét từ tháng 1 đến tháng 3 năm 2024.
+    *   Hỗ trợ đa dạng format: `YYYYMMDD`, `DDMMYY`, `logs-2024-01-01.txt`...
+*   `--fuzz-year [YEAR]`: Fuzzing theo năm (vd: `2023`, `2024`).
+*   `--fuzz-domain`: Tạo payload biến thể từ domain target (vd: `example.com.zip`, `com.example.tar.gz`).
+*   `--smart-404`: Bật tính năng nhận diện Soft 404 thông minh.
 
 #### 🔹 Filtering & Output (Lọc & Xuất kết quả)
 *   `-mc CODE`: Các status code cần hiển thị. Mặc định: `200,403`. Dùng `all` để hiện tất cả.
@@ -93,4 +108,23 @@ python3 fuzzing_backup.py -u https://dev.example.com/admin.php \
 Chỉ hiển thị code 200, bỏ qua các trang có kích thước 1024 bytes và 500 bytes:
 ```bash
 python3 fuzzing_backup.py -u https://example.com/ -w paths.txt -mc 200 -S 1024,500
+```
+
+### 6. Quét File Logs (Rất hữu ích)
+Tìm các file log hệ thống, log server, log framework:
+```bash
+python3 fuzzing_backup.py -u https://example.com/logs/ --scan-logs --smart-404
+```
+
+### 7. Tìm File Backup Theo Ngày (Date Fuzzing)
+Tìm các file backup database hoặc source code được nén theo ngày trong tháng 1/2025:
+```bash
+# Sẽ sinh ra: data_20250101.sql, backup-01-01-2025.zip, ...
+python3 fuzzing_backup.py -u https://example.com/db_backup/ --fuzz-date 1-2025
+```
+
+### 8. Tìm Backup theo Tên Miền (Domain Fuzzing)
+Tự động sinh ra các file nén dựa trên các thành phần của domain (vd: `example.zip`, `example.com.tar.gz`, `www.rar`...):
+```bash
+python3 fuzzing_backup.py -u https://example.com/ --fuzz-domain
 ```
