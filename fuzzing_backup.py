@@ -717,11 +717,20 @@ def main():
 
     for target in target_list:
         if 'FUZZ' in target:
-            if not wordlist_endpoints:
+            current_endpoints = list(wordlist_endpoints)
+
+            if not current_endpoints and args.scan_logs:
+                 if args.scan_logs != "DEFAULT":
+                     current_endpoints.extend([x.strip() for x in args.scan_logs.split(',') if x.strip()])
+                 else:
+                     current_endpoints.extend(COMMON_LOG_FILENAMES)
+                 print(f"{Colors.YELLOW}[*] Using {len(current_endpoints)} log filenames for FUZZ replacement (no -w provided).{Colors.RESET}")
+
+            if not current_endpoints:
                  print(f"{Colors.YELLOW}[!] Warning: URL contains FUZZ but no wordlist provided. Skipping {target}.{Colors.RESET}")
                  continue
             
-            for ep in wordlist_endpoints:
+            for ep in current_endpoints:
                  parts = ep.split('/')
                  filename = parts[-1]
                  parent = "/".join(parts[:-1])
