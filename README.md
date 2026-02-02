@@ -65,7 +65,7 @@ python3 fuzzing_backup.py [OPTIONS]
 *   `--fuzz-year [YEAR]`: Fuzzing theo năm (vd: `2023`, `2024`).
 *   `--fuzz-domain`: Tạo payload biến thể từ domain target (vd: `example.com.zip`, `com.example.tar.gz`).
 *   `--smart-404`: Bật tính năng nhận diện Soft 404 thông minh.
-*   `-bypass-403`: Kích hoạt tự động Bypass 403 Forbidden bằng nhiều kỹ thuật (Header, URL manipulation).
+*   `--bypass-403`: Kích hoạt tự động Bypass 403 Forbidden bằng nhiều kỹ thuật (Header, URL manipulation).
 *   `--only-bypass-403`: CHỈ chạy bypass 403 cho danh sách URL đầu vào (bỏ qua mọi fuzzing).
 
 #### 🔹 Filtering & Output (Lọc & Xuất kết quả)
