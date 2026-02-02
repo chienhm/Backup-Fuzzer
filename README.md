@@ -13,6 +13,7 @@ Backup Fuzzer được thiết kế để `fuzzing` và phát hiện các file b
 *   **Massive User-Agents**: Tích hợp danh sách User-Agent để giả lập nhiều loại trình duyệt và thiết bị, giúp tránh bị chặn bởi các cơ chế bảo mật cơ bản.
 *   **Giao diện trực quan**: Thanh tiến trình (tqdm) tự động điều chỉnh theo kích thước màn hình, hiển thị màu sắc trạng thái HTTP.
 *   **Smart 404 Detection**: Tự động nhận diện trang Soft 404 dựa trên hành vi của server để loại bỏ False Positives (vẫn đang phát triển).
+*   **403 Bypass Engine**: Tự động thử nghiệm các kỹ thuật bypass ACL/WAF khác nhau.
 
 ## 📦 Cài Đặt
 
@@ -64,6 +65,8 @@ python3 fuzzing_backup.py [OPTIONS]
 *   `--fuzz-year [YEAR]`: Fuzzing theo năm (vd: `2023`, `2024`).
 *   `--fuzz-domain`: Tạo payload biến thể từ domain target (vd: `example.com.zip`, `com.example.tar.gz`).
 *   `--smart-404`: Bật tính năng nhận diện Soft 404 thông minh.
+*   `-bypass-403`: Kích hoạt tự động Bypass 403 Forbidden bằng nhiều kỹ thuật (Header, URL manipulation).
+*   `--only-bypass-403`: CHỈ chạy bypass 403 cho danh sách URL đầu vào (bỏ qua mọi fuzzing).
 
 #### 🔹 Filtering & Output (Lọc & Xuất kết quả)
 *   `-mc CODE`: Các status code cần hiển thị. Mặc định: `200,403`. Dùng `all` để hiện tất cả.
@@ -136,4 +139,16 @@ Kết hợp tìm backup file config, fuzz domain, và bật lọc 404 thông min
 python3 fuzzing_backup.py -u https://example.com/config.php \
     --fuzz-domain --smart-404 \
     -b .bak,.old,.zip,.7z
+```
+
+### 10. Chế độ chỉ Bypass (Không Fuzz)
+Dùng để kiểm tra file admin hoặc endpoint nhạy cảm đã biết nhưng bị chặn.
+```bash
+python3 fuzzing_backup.py -u https://target.com/admin/ --only-bypass-403
+```
+
+### 11. Fuzz Backup kết hợp Bypass
+Tìm file backup, nếu file đó bị 403 thì tự động kích hoạt bypass để thử lấy nội dung.
+```bash
+python3 fuzzing_backup.py -u https://target.com/.env --bypass-403
 ```
