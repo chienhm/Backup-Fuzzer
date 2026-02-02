@@ -12,6 +12,7 @@ Backup Fuzzer được thiết kế để `fuzzing` và phát hiện các file b
 *   **Rate Limit Protection**: Tự động phát hiện lỗi 429 (Too Many Requests) và tạm dừng để tránh bị chặn IP.
 *   **Massive User-Agents**: Tích hợp danh sách User-Agent để giả lập nhiều loại trình duyệt và thiết bị, giúp tránh bị chặn bởi các cơ chế bảo mật cơ bản.
 *   **Giao diện trực quan**: Thanh tiến trình (tqdm) tự động điều chỉnh theo kích thước màn hình, hiển thị màu sắc trạng thái HTTP.
+*   **Smart 404 Detection**: Tự động nhận diện trang Soft 404 dựa trên hành vi của server để loại bỏ False Positives (vẫn đang phát triển).
 
 ## 📦 Cài Đặt
 
@@ -127,4 +128,12 @@ python3 fuzzing_backup.py -u https://example.com/db_backup/ --fuzz-date 1-2025
 Tự động sinh ra các file nén dựa trên các thành phần của domain (vd: `example.zip`, `example.com.tar.gz`, `www.rar`...):
 ```bash
 python3 fuzzing_backup.py -u https://example.com/ --fuzz-domain
+```
+
+### 9. Quét tổng hợp với Smart 404
+Kết hợp tìm backup file config, fuzz domain, và bật lọc 404 thông minh:
+```bash
+python3 fuzzing_backup.py -u https://example.com/config.php \
+    --fuzz-domain --smart-404 \
+    -b .bak,.old,.zip,.7z
 ```
